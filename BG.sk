@@ -24,7 +24,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 0.0.6
+	plugin-version: 0.0.7
 
 	allow-jump-after: 20 # blocks
 
@@ -459,7 +459,9 @@ on death of player:
 				set {_display} to "%{_tool}%"
 				set {_display} to first element of {_display} split at " of " 
 				replace all "_" with " " in {_display}
+			set {_actionbar} to replacer "{victim}", "{players-left}", "{kills}", "{tool}" and "{attacker}" with victim's display name, "%{_players-left}%", "%{bg::player::%uuid of attacker%::kills}%", "%{_display}%" and attacker's display name in yaml value "messages.kill.action-bar.msg" from "leaf.bg.config"
 			send replacer "{victim}", "{players-left}", "{kills}", "{tool}" and "{attacker}" with victim's display name, "%{_players-left}%", "%{bg::player::%uuid of attacker%::kills}%", "%{_display}%" and attacker's display name in yaml value "messages.kill.msg" from "leaf.bg.config" to {bg::arena::%{_arena}%::cache::ninjas::*}
+			show an action bar from {_actionbar} to attacker 
 		else:
 			send replacer "{victim}" with victim's display name in yaml value "messages.death" from "leaf.bg.config" to {bg::arena::%{_arena}%::cache::ninjas::*}
 		bg_death_chest(victim, {_arena})
@@ -510,7 +512,7 @@ on load:
 	delete {bg::player::*}
 	send "&7&l--------------------------------------------" to console
 	send " " to console
-	send "&aLoading &ev.0.0.6&a..." to console
+	send "&aLoading &ev.{@plugin-version}&a..." to console
 	broadcast "&aBattle Royale loaded!"
 	send " " to console
 	send "&7&l--------------------------------------------" to console
@@ -522,8 +524,8 @@ on load:
 on unload:
 	send "&7&l--------------------------------------------" to console
 	send " " to console
-	send "&aDisabling &ev.0.0.6&a..." to console
-	send "&ev.0.0.6 &adisabled!" to console
+	send "&aDisabling &ev.{@plugin-version}&a..." to console
+	send "&ev.{@plugin-version} &adisabled!" to console
 	send " " to console
 	send "&7&l--------------------------------------------" to console
 
