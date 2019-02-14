@@ -26,7 +26,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 0.0.8
+	plugin-version: 0.0.8-B
 
 	allow-jump-after: 20 # blocks
 
@@ -391,20 +391,20 @@ on drop:
 	if {bg::arena::%{bg::player::%uuid of player%::arena}%::cache::status} is "STARTING" or "WAITING":
 		cancel event
 		
+on dismount:
+	if distance between {bg::arena::%{bg::player::%uuid of player%::arena}%::start::%{bg::arena::%{bg::player::%uuid of player%::arena}%::ROUTE}%} and player > {@allow-jump-after}:
+		metadata value "BG-FLYING" of player is set
+		set metadata value "BG-PARACHUTE" of player to true
+		delete metadata value "BG-FLYING" of player
+		wait 3 ticks
+		bg_parachute(player)	
+
 on PacketRetriveEvent:
 	if "%event.getPacketName()%" is "PacketPlayInSteerVehicle":
-		if {bg::player::%uuid of event.getPlayer()%::state} is "IN-GAME":
-			if distance between {bg::arena::%{bg::player::%uuid of event.getPlayer()%::arena}%::start::%{bg::arena::%{bg::player::%uuid of event.getPlayer()%::arena}%::ROUTE}%} and event.getPlayer() > {@allow-jump-after}:
-				metadata value "BG-FLYING" of event.getPlayer() is set
-				set metadata value "BG-PARACHUTE" of event.getPlayer() to true
-				delete metadata value "BG-FLYING" of event.getPlayer()
-				wait 3 ticks
-				bg_parachute(event.getPlayer())
-				stop
-			if distance between {bg::arena::%{bg::player::%uuid of event.getPlayer()%::arena}%::start::%{bg::arena::%{bg::player::%uuid of event.getPlayer()%::arena}%::ROUTE}%} and event.getPlayer() < {@allow-jump-after}:
-				event.setCancelled(true)
-			metadata value "BG-PARACHUTE" of event.getPlayer() is set:
-				event.setCancelled(true)
+		if distance between {bg::arena::%{bg::player::%uuid of event.getPlayer()%::arena}%::start::%{bg::arena::%{bg::player::%uuid of event.getPlayer()%::arena}%::ROUTE}%} and event.getPlayer() < {@allow-jump-after}:
+			event.setCancelled(true)
+		metadata value "BG-PARACHUTE" of event.getPlayer() is set:
+			event.setCancelled(true)
 
 on right click on chest or trapped chest:	
 	if {bg::arena::%{bg::player::%uuid of player%::arena}%::cache::status} is "INGAME" or "FLYING":	
@@ -555,7 +555,11 @@ function bg_leave(p: player):
 	set {_uuid} to uuid of {_p}
 	if {bg::player::%{_uuid}%::state} is set:
 		if {bg::player::%{_uuid}%::state} is "IN-GAME":
-			bg_remove({_p}, {bg::player::%{_uuid}%::arena})
+			set {_arena} to {bg::player::%{_uuid}%::arena}
+			bg_remove({_p}, {_arena})
+			if size of {bg::arena::%{_arena}%::cache::ninjas::*} = 0:
+				if {bg::arena::%{_arena}%::cache::status} is not "RESTARTING":
+					bg_resetarena({_arena})
 			send replacer "{player}" with {_p}'s display name in yaml value "messages.leave" from "leaf.bg.config" to {bg::arena::%{bg::player::%{_uuid}%::arena}%::cache::ninjas::*}		
 		loop "arena" and "state" and "bandaging":
 			delete {bg::player::%{_uuid}%::%loop-value%}	
