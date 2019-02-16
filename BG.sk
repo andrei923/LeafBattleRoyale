@@ -26,7 +26,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 0.0.9
+	plugin-version: 0.0.9-B
 
 	allow-jump-after: 20 # blocks
 
@@ -913,6 +913,8 @@ function bg_resetarena(arena: text):
 	loop {bg::arena::%{_arena}%::BROKEN-BLOCKS::*}:
 		set block at location of {bg::arena::%{_arena}%::BROKEN-BLOCKS::%loop-index%} to {bg::arena::%{_arena}%::BROKEN-BLOCKS-TYPE::%loop-index%}
 		wait a tick		
+	delete {bg::arena::%{_arena}%::BROKEN-BLOCKS::*}
+	delete {bg::arena::%{_arena}%::PLACED-BLOCKS::*}	
 	set {bg::arena::%{_arena}%::cache::seconds} to yaml value "settings.timers.in-lobby" from "leaf.bg.config"
 	set {bg::arena::%{_arena}%::cache::status} to "WAITING"
 							
