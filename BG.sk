@@ -26,10 +26,9 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 0.0.8-B
+	plugin-version: 0.0.9
 
 	allow-jump-after: 20 # blocks
-
 
 function check_yaml(dir: text, value: text, set: text, type: text = "TEXT"):
 	yaml value {_value} from "leaf.bg.%{_dir}%" is not set:
@@ -84,6 +83,8 @@ on load:
 	check_yaml("config", "settings.chest.normal-loot", "stone sword||stick||bandage", "list")		
 	check_yaml("config", "settings.death-chest.enabled", "true", "boolean")	
 	check_yaml("config", "settings.death-chest.extra-items", "golden apple", "list")	
+	check_yaml("config", "settings.blocks.allowed-to-place", "normal wood plank", "list")		
+	check_yaml("config", "settings.blocks.allowed-to-break", "normal wood plank", "list")			
 	check_yaml("config", "settings.items.leave.item", "magma cream")		
 	check_yaml("config", "settings.items.leave.name", "&cLeave the game")	
 	check_yaml("config", "settings.items.leave.slot", "8", "number")	
@@ -395,16 +396,25 @@ on dismount:
 	if distance between {bg::arena::%{bg::player::%uuid of player%::arena}%::start::%{bg::arena::%{bg::player::%uuid of player%::arena}%::ROUTE}%} and player > {@allow-jump-after}:
 		metadata value "BG-FLYING" of player is set
 		set metadata value "BG-PARACHUTE" of player to true
-		delete metadata value "BG-FLYING" of player
 		wait 3 ticks
 		bg_parachute(player)	
+		stop
+	loop chickens in radius 5 of player:
+		metadata value "BG-PLANE" of loop-entity is "%{_p}%"
+		make player ride loop-entity
+
+command start:
+	trigger:
+		wait a second
+		make player execute command "bg start"
 
 on PacketRetriveEvent:
 	if "%event.getPacketName()%" is "PacketPlayInSteerVehicle":
-		if distance between {bg::arena::%{bg::player::%uuid of event.getPlayer()%::arena}%::start::%{bg::arena::%{bg::player::%uuid of event.getPlayer()%::arena}%::ROUTE}%} and event.getPlayer() < {@allow-jump-after}:
-			event.setCancelled(true)
+		metadata value "BG-FLYING" of event.getPlayer() is set:
+			if distance between {bg::arena::%{bg::player::%uuid of event.getPlayer()%::arena}%::start::%{bg::arena::%{bg::player::%uuid of event.getPlayer()%::arena}%::ROUTE}%} and event.getPlayer() < {@allow-jump-after}:
+				event.setCancelled(true)
 		metadata value "BG-PARACHUTE" of event.getPlayer() is set:
-			event.setCancelled(true)
+			event.setCancelled(true)			
 
 on right click on chest or trapped chest:	
 	if {bg::arena::%{bg::player::%uuid of player%::arena}%::cache::status} is "INGAME" or "FLYING":	
@@ -515,12 +525,23 @@ function bg_remove(p: player, arena: text):
 					send message centered colored {_msg} to {bg::arena::%{_arena}%::cache::ninjas::*} and {bg::arena::%{_arena}%::cache::bad-ninjas::*}
 				add 1 to {bg::stats.wins::%uuid of loop-value%}
 				loop 10 times:
-					launch "BALL" firework at location of loop-value-1 timed 1 coloured "RED" and "BLUE" AND "YELLOW" AND "GREEN"
-					wait a second				
+					if {bg::player::%uuid of loop-value-1%::state} is "IN-GAME":
+						launch "BALL" firework at location of loop-value-1 timed 1 coloured "RED" and "BLUE" AND "YELLOW" AND "GREEN"
+						wait a second				
 				bg_resetarena({_arena})
 
 on load:
 	delete {bg::player::*}
+	loop yaml list "settings.blocks.allowed-to-place" from "leaf.bg.config":
+		set {_block} to loop-value-1
+		set {_block} to {_block} parsed as material
+		if {_block} is set:
+			add {_block} to {bg::arena::BLOCK-TO-PLACE::cache::*}
+	loop yaml list "settings.blocks.allowed-to-break" from "leaf.bg.config":
+		set {_block} to loop-value-1
+		set {_block} to {_block} parsed as material
+		if {_block} is set:
+			add {_block} to {bg::arena::BLOCK-TO-BREAK::cache::*}	
 	send "&7&l--------------------------------------------" to console
 	send " " to console
 	send "&aLoading &ev.{@plugin-version}&a..." to console
@@ -596,8 +617,9 @@ function bg_join(p: player, arena: text):
 on join:
 	bg_stats("check", player)
 		
-on right click with anything:
+on right click:
 	if {bg::player::%uuid of player%::state} is set:
+		event-item is not air
 		name of event-item is yaml value "settings.items.leave.name" from "leaf.bg.config":
 			cancel event
 			bg_leave(player)
@@ -660,17 +682,17 @@ function bg_plane_track(arena: text, start: location, end: location, plane: enti
 		wait a second
 
 
-function bg_plane_track_player(p: player, arena: text, plane: entity):
-	spawn an chicken at {_p}
+function bg_plane_track_player(p: player, base: entity, arena: text, plane: entity):
+	spawn an chicken at {_plane}
 	set {_base} to spawned chicken
 	add "{Silent:1,NoGravity:1b}" to nbt of {_base}
-	set metadata value "BG-PLANE" of {_base} to "%{_p}%"
 	apply invisibility without any particles to {_base} for 7 days
+	set metadata value "BG-FLYING" of {_p} to true
+	set metadata value "BG-PLANE" of {_base} to "%{_p}%"
 	wait a tick
 	teleport {_p} to {_base}
-	wait a tick	
+	wait a tick
 	make {_p} ride {_base}
-	wait a tick	
 	while {bg::arena::%{_arena}%::cache::status} is "FLYING":
 		set {_loc} to location of {_plane}
 		add 10 to y-coords of {_loc}
@@ -725,11 +747,12 @@ function bg_load_chunks(loc: location):
 			add 16 to x-coordinate of {_pos}
 		add 16 to z-coordinate of {_pos}
 
-function bg_fly(arena: text):
+function bg_start(arena: text):
+	set {bg::arena::%{_arena}%::cache::status} to "FLYING"
 	set {bg::arena::%{_arena}%::ROUTE} to rounded random number between 1 and {bg::arena::%{_arena}%::route::id} -1
 	set {_start} to {bg::arena::%{_arena}%::start::%{bg::arena::%{_arena}%::ROUTE}%}
 	set {_end} to {bg::arena::%{_arena}%::end::%{bg::arena::%{_arena}%::ROUTE}%}	
-	bg_load_chunks({_start})
+	bg_load_chunks({_start})		
 	spawn an ender dragon at {_start}
 	set {_plane} to spawned ender dragon
 	set metadata value "BG-PLANE" of {_plane} to true
@@ -741,12 +764,17 @@ function bg_fly(arena: text):
 	{_w}.getWorldBorder().setSize({bg::arena::%{_arena}%::cache::border::current-size})	
 	{_w}.getWorldBorder().setCenter({bg::arena::%{_arena}%::cache::game-border})
 	bg_start_border({_arena})	
+	loop {bg::arena::%{_arena}%::cache::ninjas::*}:	
+		apply blindness without any particles to loop-value for 4 seconds
+		set loop-value's gamemode to spectator
+		teleport loop-value-1 to {_start}	
+		wait a tick
 	loop {bg::arena::%{_arena}%::cache::ninjas::*}:
-		apply blindness without any particles to loop-value for 3 seconds
+		bg_clear_player(loop-value)
+		bg_createBoard(loop-value, "BG-GAME", 15)	
 		apply invisibility without any particles to loop-value for 7 days
 		teleport loop-value-1 to {_start}
-		set metadata value "BG-FLYING" of loop-value-1 to true
-		bg_plane_track_player(loop-value-1, {_arena}, {_plane})	
+		bg_plane_track_player(loop-value, {_base}, {_arena}, {_plane})	
 	while {bg::arena::%{_arena}%::cache::status} is "FLYING":
 		set {_yaw} to vector yaw of vector from {_end} to {_start}
 		add "{Rotation:[%{_yaw}-10%f, %{_start}'s pitch%f]}" to nbt of {_plane} 
@@ -761,6 +789,8 @@ function bg_fly(arena: text):
 		wait a tick
 
 function bg_clear_parachute(p: player):
+	teleport {_p} to block 1 above {_p}
+	display 1 of explosion large particle at {_p}
 	delete metadata value "BG-PARACHUTE" of {_p}
 	loop entities in radius 3 of {_p}:
 		metadata value "BG-OWNER" of loop-entity is {_p}:
@@ -768,6 +798,7 @@ function bg_clear_parachute(p: player):
 
 function bg_parachute(p: player):
 	set {_uuid} to uuid of {_p}
+	delete metadata value "BG-FLYING" of {_p}
 	spawn an chicken at {_p}
 	set {_base} to spawned chicken
 	add "{Silent:1,NoGravity:1b,Invisible:1b}" to nbt of {_base}
@@ -804,37 +835,45 @@ function bg_parachute(p: player):
 			{_p}'s pitch < 70		
 			{_p}'s pitch > -30
 			push {_base} vector between {_p} and block in front of {_p} at speed 0.05
-		{_base} is on ground:
-			delete metadata value "BG-PARACHUTE" of {_p}
-			display 1 of explosion large particle at {_base}
+		if block at {_p} is not air:
 			bg_clear_parachute({_p})
-			teleport {_p} to block 2 above {_p}
-			stop
+			stop	
 		display 1 of lava particle at {_base}
 		wait a tick
 
 on break:
 	if {bg::player::%uuid of player%::state} is "IN-GAME":
-		cancel event
+		if {bg::arena::%{bg::player::%uuid of player%::arena}%::cache::status} is "INGAME" or "FLYING":
+			loop {bg::arena::BLOCK-TO-BREAK::cache::*}:
+				loop-value is event-block 	
+				if {bg::arena::%{bg::player::%uuid of player%::arena}%::PLACED-BLOCKS::%location of event-block%} is set:
+					delete {bg::arena::%{bg::player::%uuid of player%::arena}%::PLACED-BLOCKS::%location of event-block%}
+					stop
+				if {bg::arena::%{bg::player::%uuid of player%::arena}%::PLACED-BLOCKS::%location of event-block%} is not set:	
+					set {bg::arena::%{bg::player::%uuid of player%::arena}%::BROKEN-BLOCKS::%location of event-block%} to location of event-block
+					set {bg::arena::%{bg::player::%uuid of player%::arena}%::BROKEN-BLOCKS-TYPE::%location of event-block%} to type of event-block
+				stop
+			cancel event										
+		else:
+			cancel event
 	
 on place:
 	if {bg::player::%uuid of player%::state} is "IN-GAME":
-		cancel event
-
-function bg_start(arena: text):
-	set {bg::arena::%{_arena}%::cache::status} to "FLYING"	
-	loop {bg::arena::%{_arena}%::cache::ninjas::*}:	
-		teleport loop-value to {bg::arena::%{_arena}%.start}
-		bg_clear_player(loop-value)
-		bg_createBoard(loop-value, "BG-GAME", 15)
-	bg_fly({_arena})
+		if {bg::arena::%{bg::player::%uuid of player%::arena}%::cache::status} is "INGAME" or "FLYING":
+			loop {bg::arena::BLOCK-TO-PLACE::cache::*}:
+				loop-value is event-block 
+				if {bg::arena::%{bg::player::%uuid of player%::arena}%::PLACED-BLOCKS::%location of event-block%} is not set:
+					set {bg::arena::%{bg::player::%uuid of player%::arena}%::PLACED-BLOCKS::%location of event-block%} to location of event-block
+				stop
+			cancel event
+		else:
+			cancel event
 
 function bg_start_countdown(arena: text):
 	set {bg::arena::%{_arena}%::cache::status} to "STARTING"
 	loop {bg::arena::%{_arena}%::cache::seconds} times:
 		if {bg::arena::%{_arena}%::cache::status} is "STARTING" or "WAITING":
 			size of {bg::arena::%{_arena}%::cache::ninjas::*} >= 2
-			wait a second
 			remove 1 from {bg::arena::%{_arena}%::cache::seconds}	
 			if {bg::arena::%{_arena}%::cache::seconds} = 1 or 2 or 3 or 4 or 5 or 10:
 				send replacer "{seconds}" with "%{bg::arena::%{_arena}%::cache::seconds}%" in yaml value "messages.starting" from "leaf.bg.config" to {bg::arena::%{_arena}%::cache::ninjas::*}	
@@ -844,6 +883,9 @@ function bg_start_countdown(arena: text):
 				else:
 					set {bg::arena::%{_arena}%::cache::status} to "WAITING"
 					set {bg::arena::%{_arena}%::cache::seconds} to yaml value "settings.timers.in-lobby" from "leaf.bg.config"
+			wait a second			
+		else:
+			stop
 		
 function bg_resetarena(arena: text):
 	set {_w} to {bg::arena::%{_arena}%::center}'s world
@@ -865,6 +907,12 @@ function bg_resetarena(arena: text):
 	loop ...{_w}.getEntities():
 		loop-value is not player
 		loop-value.remove()
+	loop {bg::arena::%{_arena}%::PLACED-BLOCKS::*}:
+		set block at location of {bg::arena::%{_arena}%::PLACED-BLOCKS::%loop-index%} to air
+		wait a tick
+	loop {bg::arena::%{_arena}%::BROKEN-BLOCKS::*}:
+		set block at location of {bg::arena::%{_arena}%::BROKEN-BLOCKS::%loop-index%} to {bg::arena::%{_arena}%::BROKEN-BLOCKS-TYPE::%loop-index%}
+		wait a tick		
 	set {bg::arena::%{_arena}%::cache::seconds} to yaml value "settings.timers.in-lobby" from "leaf.bg.config"
 	set {bg::arena::%{_arena}%::cache::status} to "WAITING"
 							
