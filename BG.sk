@@ -26,7 +26,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 0.0.9-B
+	plugin-version: 0.1.0
 
 	allow-jump-after: 20 # blocks
 
@@ -391,30 +391,32 @@ on chat:
 on drop:
 	if {bg::arena::%{bg::player::%uuid of player%::arena}%::cache::status} is "STARTING" or "WAITING":
 		cancel event
-		
+
 on dismount:
 	if distance between {bg::arena::%{bg::player::%uuid of player%::arena}%::start::%{bg::arena::%{bg::player::%uuid of player%::arena}%::ROUTE}%} and player > {@allow-jump-after}:
 		metadata value "BG-FLYING" of player is set
-		set metadata value "BG-PARACHUTE" of player to true
-		wait 3 ticks
 		bg_parachute(player)	
 		stop
+	wait a tick
+	if player is riding:
+		stop
+	metadata value "BG-PARACHUTE" of player is set:
+		wait a tick
+		loop chickens in radius 5 of player:
+			metadata value "BG-OWNER" of loop-entity is "%player%"
+			make player ride loop-entity
+			stop
 	loop chickens in radius 5 of player:
-		metadata value "BG-PLANE" of loop-entity is "%{_p}%"
+		metadata value "BG-PLANE" of loop-entity is "%player%"
 		make player ride loop-entity
-
-command start:
-	trigger:
-		wait a second
-		make player execute command "bg start"
 
 on PacketRetriveEvent:
 	if "%event.getPacketName()%" is "PacketPlayInSteerVehicle":
+		metadata value "BG-PARACHUTE" of event.getPlayer() is set:
+			event.setCancelled(true)
 		metadata value "BG-FLYING" of event.getPlayer() is set:
 			if distance between {bg::arena::%{bg::player::%uuid of event.getPlayer()%::arena}%::start::%{bg::arena::%{bg::player::%uuid of event.getPlayer()%::arena}%::ROUTE}%} and event.getPlayer() < {@allow-jump-after}:
-				event.setCancelled(true)
-		metadata value "BG-PARACHUTE" of event.getPlayer() is set:
-			event.setCancelled(true)			
+				event.setCancelled(true)		
 
 on right click on chest or trapped chest:	
 	if {bg::arena::%{bg::player::%uuid of player%::arena}%::cache::status} is "INGAME" or "FLYING":	
@@ -671,12 +673,12 @@ function bg_plane_track(arena: text, start: location, end: location, plane: enti
 				metadata value "BG-FLYING" of loop-value is set:
 					send title "&e" with subtitle "&ePRESS &bSNEAK &eTO OPEN PARACHUTE" to loop-value for 20 ticks		
 		distance between {_plane} and {_end} < 5:
+			loop entities in radius 10 of {_plane}:
+				metadata value "BG-PLANE" of loop-entity is set:
+					clear loop-entity	
 			loop {bg::arena::%{_arena}%::cache::ninjas::*}:
 				metadata value "BG-FLYING" of loop-value is set:
-					bg_parachute(loop-value)
-			loop entities in radius 5 of {_plane}:
-				metadata value "BG-PLANE" of loop-entity is set:
-					clear loop-entity 
+					bg_parachute(loop-value)					
 			set {bg::arena::%{_arena}%::cache::status} to "INGAME"	
 			stop		
 		wait a second
@@ -777,7 +779,7 @@ function bg_start(arena: text):
 		bg_plane_track_player(loop-value, {_base}, {_arena}, {_plane})	
 	while {bg::arena::%{_arena}%::cache::status} is "FLYING":
 		set {_yaw} to vector yaw of vector from {_end} to {_start}
-		add "{Rotation:[%{_yaw}-10%f, %{_start}'s pitch%f]}" to nbt of {_plane} 
+		add "{Rotation:[%{_yaw}-4%f, %{_start}'s pitch%f]}" to nbt of {_plane} 
 		push {_plane} vector between {_plane} and {_end} at speed 0.12		
 		push {_plane} vector between {_end} and {_plane} at speed 0.1
 		set {_loc} to location of {_plane}
@@ -789,7 +791,7 @@ function bg_start(arena: text):
 		wait a tick
 
 function bg_clear_parachute(p: player):
-	teleport {_p} to block 1 above {_p}
+	teleport {_p} to block 1.5 above {_p}
 	display 1 of explosion large particle at {_p}
 	delete metadata value "BG-PARACHUTE" of {_p}
 	loop entities in radius 3 of {_p}:
@@ -798,10 +800,13 @@ function bg_clear_parachute(p: player):
 
 function bg_parachute(p: player):
 	set {_uuid} to uuid of {_p}
+	wait a tick
 	delete metadata value "BG-FLYING" of {_p}
+	set metadata value "BG-PARACHUTE" of {_p} to "SET"
 	spawn an chicken at {_p}
 	set {_base} to spawned chicken
 	add "{Silent:1,NoGravity:1b,Invisible:1b}" to nbt of {_base}
+	set metadata value "BG-OWNER" of {_base} to "%{_p}%"	
 	spawn an armor stand at {_p}
 	set {_left} to spawned armor stand	
 	if {bg::stats.BANNER::left::%{_uuid}%} is set:	
@@ -821,24 +826,26 @@ function bg_parachute(p: player):
 	set {_center}'s helmet to fence gate
 	add "{NoGravity:1b,Invisible:1b}" to nbt of {_center}
 	make {_p} ride {_base}	
-	set metadata value "BG-OWNER" of {_center} to player
-	set metadata value "BG-OWNER" of {_base} to player
-	set metadata value "BG-OWNER" of {_left} to player
-	set metadata value "BG-OWNER" of {_right} to player		
+	set metadata value "BG-OWNER" of {_center} to "%{_p}%"
+	set metadata value "BG-OWNER" of {_left} to "%{_p}%"
+	set metadata value "BG-OWNER" of {_right} to "%{_p}%"		
 	remove invisibility from {_p}
-	while {_p} is riding {_base}:
-		{_base} is not on ground:
-			teleport {_left} to {_p}
-			teleport {_right} to {_p}
-			teleport {_center} to {_p}
-			add "{Rotation:[%{_p}'s yaw%f, %{_p}'s pitch%f]}" to nbt of {_base} 
-			{_p}'s pitch < 70		
-			{_p}'s pitch > -30
-			push {_base} vector between {_p} and block in front of {_p} at speed 0.05
-		if block at {_p} is not air:
-			bg_clear_parachute({_p})
-			stop	
-		display 1 of lava particle at {_base}
+	while metadata value "BG-PARACHUTE" of {_p} is set:
+		if {_base} is alive:
+			{_base} is not on ground:
+				teleport {_left} to {_p}
+				teleport {_right} to {_p}
+				teleport {_center} to {_p}
+				add "{Rotation:[%{_p}'s yaw%f, %{_p}'s pitch%f]}" to nbt of {_base} 
+				{_p}'s pitch < 70		
+				{_p}'s pitch > -30
+				push {_base} vector between {_p} and block in front of {_p} at speed 0.05
+			if block at {_p} is not air:
+				bg_clear_parachute({_p})
+				stop	
+			display 1 of lava particle at {_base}
+		else:
+			stop
 		wait a tick
 
 on break:
