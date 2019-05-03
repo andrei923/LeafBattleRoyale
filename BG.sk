@@ -1,4 +1,3 @@
-
 import:
 	java.lang.Math
 	java.util.Arrays 
@@ -8,7 +7,8 @@ import:
 	org.bukkit.util.EulerAngle 
 	org.bukkit.util.Vector
 	com.fren_gor.packetUtils.events.PacketRetriveEvent
-
+	org.bukkit.event.player.PlayerArmorStandManipulateEvent
+	org.bukkit.event.player.PlayerInteractEvent		
 
 option nms:
     get: 
@@ -26,7 +26,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 0.1.0-B
+	plugin-version: 0.1.1
 
 	allow-jump-after: 20 # blocks
 
@@ -52,15 +52,7 @@ local expression nbt of %entity%:
         {_nbt}.a({_nbt2})
         {_e}.f({_nbt})	
 
-expression %item% with lore %text%:
-	return type: item
-	get:
-		set {_i} to expr-1.clone()
-		set {_meta} to {_i}.getItemMeta()
-		{_meta}.setLore(Arrays.asList(split expr-2 at "||"))
-		{_i}.setItemMeta({_meta})
-		return {_i}		
-	
+
 #From https://forums.skunity.com/resources/mirrorutils.706/ by EWS
 local expression replacer %texts% with %texts% in %text%:
 	return type: text
@@ -128,21 +120,25 @@ function bg_send_arena_status(p: player):
 			send "&c&l✘ &fArena has no plane route use /bg set-route-start &e%{_arena}%" to {_p}
 			send "&f/bg set-route-end &e%{_arena}% &fand /bg save-route &e%{_arena}%" to {_p}
 		if {bg::arena::%{_arena}%::start::1} and {bg::arena::%{_arena}%::end::1} is set:
-			send "&a&l✔ &fArena route(s) set. &a(%size of {bg::arena::%{_arena}%::start::*}%&a)" to {_p}	
+			send "&a&l✔ &fArena route(s) set. &a(%size of {bg::arena::%{_arena}%::start::*}%&a)" to {_p}
+		send "&fTo save arena use &a/bg savearena &e%{_arena}%" to {_p}
 		send "&e&l✦&7&l&m------------------------------------&e&l✦" to {_p}		
 
 
 function bg_set_banner(p: player, side: text):
 	set {_uuid} to uuid of {_p}
-	open chest inventory with 2 rows named "&7Select banner &e%{_side}% &7side" to {_p}	
+	open chest inventory with 2 rows named "&3Select banner for &e%{_side}% &3side" to {_p}	
 	set {_slot} to 0				
 	loop "Black", "Red", "Dark Green", "Brown", "Blue", "Purple", "Cyan", "Gray", "Pink", "Light Green", "Yellow", "Light Blue", "Magenta", "Orange" and "White":
-		set {_banner} to "%loop-value% banner item" parsed as material
+		minecraft version contains "1.8" or "1.9" or "1.10" or "1.11" or "1.12":
+			set {_banner} to "%loop-value% banner item" parsed as material
+		else:
+			set {_banner} to "%loop-value% banner" parsed as material
 		make a gui slot {_slot} of {_p} with {_banner} named "&8&l» <%loop-value%>%loop-value% Banner" to run:
 			set {bg::stats.BANNER::%{_side}%::%{_uuid}%} to {_banner}
 			send "&aBanner set for &e%{_side}% &aside"
 			close {_p}'s inventory
-		make a gui slot 17 of {_p} with barrier named "&8&l» &eRandom" to run:			
+		make a gui slot 17 of {_p} with black banner named "&8&l» &eRandom" to run:			
 			delete {bg::stats.BANNER::%{_side}%::%{_uuid}%}
 			send "&aBanner set for &e%{_side}% &aside"
 			close {_p}'s inventory	
@@ -154,12 +150,13 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 	trigger:
 		if arg 1 is "help":
 			if player has permission "bg.player":
-				send "&7&l------------&8[ &6&lBATTLEGROUNDS &8]&7&l------------"
-				send "&7/bg list"
-				send "&7/bg join &8(&7arena_name&8)"
-				send "&7/bg parachute"				
-				send "&7/bg autojoin"
-				send "&7/bg leave"
+				send "&8&l[&7&l----------&8[ &6&lBATTLEGROUNDS &8]&7&l----------&8&l]"
+				send "&a/bg list"
+				send "&a/bg join &8(&7arena_name&8)"
+				send "&a/bg parachute"				
+				send "&a/bg autojoin"
+				send "&a/bg leave"
+				send "&7&l------------------------------------&8&l]"
 			if player has permission "bg.admin":
 				send "&7/bg setlobby"			
 				send "&7/bg start"				
@@ -179,7 +176,7 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 				send "&7/bg chest add &8(&7hold the item)"				
 				send "&7/bg chest remove &8(&7hold the item)"		
 				send "&7/bg chest rename &8(&7hold the item)"															
-				send "&7&l------------------------------------------"
+				send "&7&l-----------------------------------"
 				stop
 		if arg 1 is "join":		
 			bg_join(player, arg-2)
@@ -198,8 +195,11 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 					if {bg::arena::%loop-value%::cache::status} is "INGAME":
 						set {_status} to "&9Flying"	
 					if {bg::arena::%loop-value%::cache::status} is "RESTARTING":
-						set {_status} to "&cRestarting"																						
-					make a gui slot {_slot} of player with green clay named "&8» &7Arena: &e%loop-value%" with lore "||&8▪ &7Status: &e%{_status}%||&8▪ &7Playing: &e%size of {bg::arena::%loop-value%::cache::ninjas::*}%" to run function bg_join(player, loop-value-1)
+						set {_status} to "&cRestarting"		
+					set {_item} to green clay named "&8» &7Arena: &e%loop-value%"
+					set line 1 of {_item}'s lore to "&8▪ &7Status: &e%{_status}%"	
+					set line 2 of {_item}'s lore to "&8▪ &7Playing: &e%size of {bg::arena::%loop-value%::cache::ninjas::*}%"																				
+					make a gui slot {_slot} of player with {_item} to run function bg_join(player, loop-value-1)
 					add 1 to {_slot}
 					if {_slot} is 17 or 26 or 35:
 						add 2 to {_slot}
@@ -224,12 +224,12 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 			if {bg::stats.BANNER::left::%uuid of player%} is set:
 				make a gui slot 0 of player with {bg::stats.BANNER::left::%uuid of player%} named "&8&l» &7Left Side" to run function bg_set_banner(player, "left")
 			if {bg::stats.BANNER::left::%uuid of player%} is not set:
-				make a gui slot 0 of player with white banner item named "&8&l» &7Left Side" to run function bg_set_banner(player, "left")
+				make a gui slot 0 of player with black banner named "&8&l» &7Left Side" to run function bg_set_banner(player, "left")
 			make a gui slot 2 of player with fence gate named "&7¯\_(ツ)_/¯" to do nothing
 			if {bg::stats.BANNER::right::%uuid of player%} is set:
 				make a gui slot 4 of player with {bg::stats.BANNER::right::%uuid of player%} named "&8&l» &7Left Side" to run function bg_set_banner(player, "right")
 			if {bg::stats.BANNER::right::%uuid of player%} is not set:
-				make a gui slot 4 of player with white banner item named "&8&l» &7Right Side" to run function bg_set_banner(player, "right")				
+				make a gui slot 4 of player with black banner named "&8&l» &7Right Side" to run function bg_set_banner(player, "right")				
 		if arg 1 is "leave":	
 			bg_leave(player)
 		if arg 1 is "autojoin":		
@@ -326,6 +326,8 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 				send "&aCenter for Arena &b%arg-2% &ahas been set!"		
 		if arg 1 is "setbordersize":	
 			if player has permission "bg.admin":
+				arg-2 is set
+				arg-3 is set
 				set {bg::arena::%arg-2%::border::first} to arg-3 parsed as number
 				bg_send_arena_status(player)
 				send "&aFirst Border for Arena &b%arg-2% &ahas been set to &b%arg-3%!"													
@@ -382,7 +384,15 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 				else:
 					send "&aThis arena not exists"
 	
+on PlayerArmorStandManipulateEvent:
+	if {bg::player::%uuid of event.getPlayer()%::state} is set:	
+		cancel event
 
+on PlayerInteractEvent:
+	if {bg::player::%uuid of event.getPlayer()%::state} is set:	
+		if "%event.getAction()%" is "PHYSICAL":
+			cancel event
+	
 on chat:
 	if {bg::player::%uuid of player%::state} is set:
 		cancel event
@@ -484,9 +494,9 @@ on death of player:
 				set {_display} to "%{_tool}%"
 				set {_display} to first element of {_display} split at " of " 
 				replace all "_" with " " in {_display}
-			set {_actionbar} to replacer "{victim}", "{players-left}", "{kills}", "{tool}" and "{attacker}" with victim's display name, "%{_players-left}%", "%{bg::player::%uuid of attacker%::kills}%", "%{_display}%" and attacker's display name in yaml value "messages.kill.action-bar.msg" from "leaf.bg.config"
+			set {_bar} to replacer "{victim}", "{players-left}", "{kills}", "{tool}" and "{attacker}" with victim's display name, "%{_players-left}%", "%{bg::player::%uuid of attacker%::kills}%", "%{_display}%" and attacker's display name in yaml value "messages.kill.action-bar" from "leaf.bg.config"
 			send replacer "{victim}", "{players-left}", "{kills}", "{tool}" and "{attacker}" with victim's display name, "%{_players-left}%", "%{bg::player::%uuid of attacker%::kills}%", "%{_display}%" and attacker's display name in yaml value "messages.kill.msg" from "leaf.bg.config" to {bg::arena::%{_arena}%::cache::ninjas::*}
-			show an action bar from {_actionbar} to attacker 
+			show an action bar with "%{_bar}%" to attacker 
 		else:
 			send replacer "{victim}" with victim's display name in yaml value "messages.death" from "leaf.bg.config" to {bg::arena::%{_arena}%::cache::ninjas::*}
 		bg_death_chest(victim, {_arena})
@@ -666,6 +676,15 @@ on damage of entity:
 	metadata value "BG-PARACHUTE" of victim is set:
 		cancel event
 
+function bg_plane_evacuate(arena: text, plane: entity):
+	loop {bg::arena::%{_arena}%::cache::ninjas::*}:
+		metadata value "BG-FLYING" of loop-value is set:
+			bg_parachute(loop-value)	
+	loop entities in radius 10 of {_plane}:
+		metadata value "BG-PLANE" of loop-entity is "DRAGON":
+			clear loop-entity
+	set {bg::arena::%{_arena}%::cache::status} to "INGAME"		
+
 function bg_plane_track(arena: text, start: location, end: location, plane: entity):
 	while {bg::arena::%{_arena}%::cache::status} is "FLYING":
 		distance between {_start} and {_plane} > {@allow-jump-after}:
@@ -673,12 +692,7 @@ function bg_plane_track(arena: text, start: location, end: location, plane: enti
 				metadata value "BG-FLYING" of loop-value is set:
 					send title "&e" with subtitle "&ePRESS &bSNEAK &eTO OPEN PARACHUTE" to loop-value for 20 ticks		
 		distance between {_plane} and {_end} < 5:
-			loop entities in radius 10 of {_plane}:
-				metadata value "BG-PLANE" of loop-entity is set:
-					clear loop-entity	
-			loop {bg::arena::%{_arena}%::cache::ninjas::*}:
-				metadata value "BG-FLYING" of loop-value is set:
-					bg_parachute(loop-value)					
+			bg_plane_evacuate({_arena}, {_plane})		
 			set {bg::arena::%{_arena}%::cache::status} to "INGAME"	
 			stop		
 		wait a second
@@ -704,7 +718,7 @@ function bg_plane_track_player(p: player, base: entity, arena: text, plane: enti
 function bw_border_closing(arena: text, time: number):
 	set {bg::arena::%{_arena}%::cache::next-border} to "&cBORDER CLOSING"
 	set {_w} to {bg::arena::%{_arena}%::center}'s world
-	{_w}.getWorldBorder().setSize({bg::arena::%{_arena}%::cache::border::current-size}, {_time})
+	{_w}.getWorldBorder().setSize({bg::arena::%{_arena}%::cache::border::current-size} and {_time})
 	loop {_time} times:
 		if {bg::arena::%{_arena}%::cache::status} is "FLYING" or "INGAME":
 			wait a second
@@ -754,11 +768,14 @@ function bg_start(arena: text):
 	set {bg::arena::%{_arena}%::ROUTE} to rounded random number between 1 and {bg::arena::%{_arena}%::route::id} -1
 	set {_start} to {bg::arena::%{_arena}%::start::%{bg::arena::%{_arena}%::ROUTE}%}
 	set {_end} to {bg::arena::%{_arena}%::end::%{bg::arena::%{_arena}%::ROUTE}%}	
-	bg_load_chunks({_start})		
+	bg_load_chunks({_start})	
 	spawn an ender dragon at {_start}
 	set {_plane} to spawned ender dragon
-	set metadata value "BG-PLANE" of {_plane} to true
-	add "{Silent:1,NoGravity:1b,CustomName:""%yaml value ""settings.mix.dragon-name"" from ""leaf.bg.config""%"",DragonPhase: 10}" to nbt of {_plane} 
+	set metadata value "BG-PLANE" of {_plane} to "DRAGON"
+	if minecraft version contains "1.8":
+		add "{Silent:1,NoGravity:1b,CustomName:""%yaml value ""settings.mix.dragon-name"" from ""leaf.bg.config""%"",DragonPhase: 10,Rotation:[%{_yaw}-11%f, %{_start}'s pitch%f]}" to nbt of {_plane} 
+	else:
+		add "{Silent:1b,NoGravity:1b,Name:""%yaml value ""settings.mix.dragon-name"" from ""leaf.bg.config""%"",DragonPhase: 0,Rotation:[%{_yaw}-11%f, %{_start}'s pitch%f]}" to nbt of {_plane} 
 	bg_plane_track({_arena}, {_start}, {_end}, {_plane})
 	set {_w} to {bg::arena::%{_arena}%::center}'s world
 	set {bg::arena::%{_arena}%::cache::border::current-size} to {bg::arena::%{_arena}%::border::first}
@@ -776,23 +793,28 @@ function bg_start(arena: text):
 		bg_createBoard(loop-value, "BG-GAME", 15)	
 		apply invisibility without any particles to loop-value for 7 days
 		teleport loop-value-1 to {_start}
+		loop-value-1.setAllowFlight(true)
+		loop-value-1.setFlying(true)
 		bg_plane_track_player(loop-value, {_base}, {_arena}, {_plane})	
 	while {bg::arena::%{_arena}%::cache::status} is "FLYING":
 		set {_yaw} to vector yaw of vector from {_end} to {_start}
-		add "{Rotation:[%{_yaw}-4%f, %{_start}'s pitch%f]}" to nbt of {_plane} 
+		add "{Rotation:[%{_yaw}-11%f, %{_start}'s pitch%f]}" to nbt of {_plane} 
 		push {_plane} vector between {_plane} and {_end} at speed 0.12		
 		push {_plane} vector between {_end} and {_plane} at speed 0.1
-		set {_loc} to location of {_plane}
 		bg_load_chunks(location of {_plane})
 		if y-coords of {_p} < y-coords of {_end}:
 			push {_plane} upwards at speed 0.1
 		if y-coords of {_p} > y-coords of {_end} +10:	
-			push {_plane} downwards at speed 0.1				
+			push {_plane} downwards at speed 0.1	
+		if {_w}.getWorldBorder().isInside(location of {_plane}) is false:
+			bg_plane_evacuate({_arena}, {_plane})						
 		wait a tick
 
 function bg_clear_parachute(p: player):
+	{_p}.setFlying(false)
+	{_p}.setAllowFlight(false)
 	teleport {_p} to block 1.5 above {_p}
-	display 1 of explosion large particle at {_p}
+	play large explosion at {_p}
 	delete metadata value "BG-PARACHUTE" of {_p}
 	loop entities in radius 3 of {_p}:
 		metadata value "BG-OWNER" of loop-entity is {_p}:
@@ -812,14 +834,14 @@ function bg_parachute(p: player):
 	if {bg::stats.BANNER::left::%{_uuid}%} is set:	
 		set {_left}'s helmet to {bg::stats.BANNER::left::%{_uuid}%}
 	else:
-		set {_left}'s helmet to banner
+		set {_left}'s helmet to black banner
 	add "{Pose:{Head:[265f,94f,0f]},NoGravity:1b,Invisible:1b}" to nbt of {_left}
 	spawn an armor stand at {_p}
 	set {_right} to spawned armor stand
 	if {bg::stats.BANNER::right::%{_uuid}%} is set:	
 		set {_right}'s helmet to {bg::stats.BANNER::right::%{_uuid}%}
 	else:
-		set {_right}'s helmet to banner
+		set {_right}'s helmet to black banner
 	add "{Pose:{Head:[265f,270f,0f]},NoGravity:1b,Invisible:1b}" to nbt of {_right}
 	spawn an armor stand at {_p}		
 	set {_center} to spawned armor stand	
@@ -839,11 +861,12 @@ function bg_parachute(p: player):
 				add "{Rotation:[%{_p}'s yaw%f, %{_p}'s pitch%f]}" to nbt of {_base} 
 				{_p}'s pitch < 70		
 				{_p}'s pitch > -30
-				push {_base} vector between {_p} and block in front of {_p} at speed 0.05
+				push {_base} vector between {_p} and block in front of {_p} at speed 0.06
+			push {_base} downwards at speed 0.06
 			if block at {_p} is not air:
 				bg_clear_parachute({_p})
 				stop	
-			display 1 of lava particle at {_base}
+			play lava at {_p}		
 		else:
 			stop
 		wait a tick
@@ -931,6 +954,8 @@ function bg_clear_player(p: player):
 	set {_p}'s food to 20	
 	clear {_p}'s level
 	clear {_p}'s inventory
+	{_p}.setFlying(false)
+	{_p}.setAllowFlight(false)	
 	set {_p}'s gamemode to survival
 	loop ...{_p}.getActivePotionEffects():
 		{_p}.removePotionEffect(loop-value.getType())	
@@ -954,7 +979,7 @@ function bg_get_direction(p: player, target: location) :: text:
 	set {_direction} to {_p}.getEyeLocation().getDirection()
 	set {_angle} to {_vector}.angle({_direction})
 	set {_r} to {_angle} * 180 / 3.14159265359
-	set {_directions::*} to "⬆", "⬅", "⬇", "➡"
+	set {_directions::*} to "⬆", "⬅", "⬇" and "➡"
 	set {_values::*} to 45, 135, 225 and 315	
 	loop {_values::*}:
 		{_r} < loop-value
