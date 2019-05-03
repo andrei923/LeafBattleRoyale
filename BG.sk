@@ -26,7 +26,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 0.1.0-B
+	plugin-version: 0.1.0-Re
 
 	allow-jump-after: 20 # blocks
 
