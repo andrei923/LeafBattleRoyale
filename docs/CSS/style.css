@@ -8,7 +8,7 @@ body {
    grid-template-columns: minmax(auto,500px);
    grid-template-rows: minmax(auto,500px);
    background-color: #34495e;
-   background-image: url("https://andrei923.github.io/me/IMG/background.png");
+   background-image: url("https://andrei923.github.io/LeafBattleRoyale/IMG/background.png");
    background-position: center;
    background-size: cover;
 }
