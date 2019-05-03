@@ -5,12 +5,14 @@ body {
    min-height: 100vh;
    display: grid;
    place-content: center;
-   grid-template-columns: minmax(auto,500px);
-   grid-template-rows: minmax(auto,500px);
    background-color: #34495e;
    background-image: url("https://andrei923.github.io/LeafBattleRoyale/IMG/background.png");
+   background-size: 2000px;
    background-position: center;
-   background-size: cover;
+   text-align: center;
+   color: #34495e;
+   text-rendering: geometricPrecision;
+   grid-gap: 10px;
 }
 
 #message {
@@ -20,15 +22,17 @@ body {
 
 #container {
    background-color: white;
-   padding: 10px;
+   padding: 40px;
    display: grid;
    border-radius: 5px;
-   transition: padding 500ms;
+   max-width: 500px;
+   min-height: 500px;
+   box-shadow: 15px 15px rgb(0, 0, 0, 0.2);
 }
 
-h1 {font-size: 3em;}
+h1 {font-size: 2.8em;}
 
-h3 {font-size: 1.5em;}
+h3 {font-size: 2em;}
 
 #description {
    display: grid;
@@ -42,7 +46,8 @@ h3 {font-size: 1.5em;}
    text-decoration: none;
    color: white;
    padding: 15px;
-   background-color: #3498db;
+   background-color: #2ecc71;
+   font-size: 1em;
 }
 
 .download {
@@ -53,9 +58,13 @@ h3 {font-size: 1.5em;}
 }
 
 .button:hover {
-   background-color: #2980b9;
+   background-color: #27ae60;
 }
 
 .button:active {
-   background-color: #e74c3c;
+   background-color: #2ecc71;
+}
+
+p {
+   font-size: 1.3em;
 }
