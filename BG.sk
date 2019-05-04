@@ -26,7 +26,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 0.1.1
+	plugin-version: 0.1.1-B
 
 	allow-jump-after: 20 # blocks
 
@@ -69,6 +69,7 @@ on load:
 		unload yaml loop-value-1
 	load yaml "plugins/Battlegrounds/config.yml" as "leaf.bg.config"	
 	check_yaml("config", "settings.chat-format", "&3{player} &8» &7{message}")		
+	check_yaml("config", "settings.build-system", "true", "boolean")	
 	check_yaml("config", "settings.chest.enabled", "true", "boolean")
 	check_yaml("config", "settings.chest.min", "3", "number")		
 	check_yaml("config", "settings.chest.max", "6", "number")			
@@ -94,6 +95,10 @@ on load:
 	check_yaml("config", "messages.stats", "&e&l✦&7&l&m--------------------------------------&e&l✦||||&8&l»          &6&lBATTLEGROUNDS STATS        &8&l«||||&6&l» &7&lWINS &c{wins}||&6&l» &7&lKILLS &c{kills}||&6&l» &7&lDEATHS &c{deaths}||||&e&l✦&7&l&m--------------------------------------&e&l✦", "list")		
 	check_yaml("config", "messages.summary", "||||||&e✦ &7Battle Royale &e✦||||&aWinner &7- &e{player}||&aKills &7- &e{kills}||||||", "list")			
 	save yaml "leaf.bg.config"
+	minecraft version contains "1.8":
+		set {bg::banner} to "banner" parsed as material
+	else:
+		set {bg::banner} to "black banner" parsed as material
 
 #Easy setup pls.
 function bg_send_arena_status(p: player):
@@ -127,7 +132,7 @@ function bg_send_arena_status(p: player):
 
 function bg_set_banner(p: player, side: text):
 	set {_uuid} to uuid of {_p}
-	open chest inventory with 2 rows named "&3Select banner for &e%{_side}% &3side" to {_p}	
+	open chest inventory with 2 rows named "&3Banner for &e%{_side}% &3side" to {_p}	
 	set {_slot} to 0				
 	loop "Black", "Red", "Dark Green", "Brown", "Blue", "Purple", "Cyan", "Gray", "Pink", "Light Green", "Yellow", "Light Blue", "Magenta", "Orange" and "White":
 		minecraft version contains "1.8" or "1.9" or "1.10" or "1.11" or "1.12":
@@ -138,7 +143,7 @@ function bg_set_banner(p: player, side: text):
 			set {bg::stats.BANNER::%{_side}%::%{_uuid}%} to {_banner}
 			send "&aBanner set for &e%{_side}% &aside"
 			close {_p}'s inventory
-		make a gui slot 17 of {_p} with black banner named "&8&l» &eRandom" to run:			
+		make a gui slot 17 of {_p} with {bg::banner} named "&8&l» &eRandom" to run:			
 			delete {bg::stats.BANNER::%{_side}%::%{_uuid}%}
 			send "&aBanner set for &e%{_side}% &aside"
 			close {_p}'s inventory	
@@ -224,12 +229,12 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 			if {bg::stats.BANNER::left::%uuid of player%} is set:
 				make a gui slot 0 of player with {bg::stats.BANNER::left::%uuid of player%} named "&8&l» &7Left Side" to run function bg_set_banner(player, "left")
 			if {bg::stats.BANNER::left::%uuid of player%} is not set:
-				make a gui slot 0 of player with black banner named "&8&l» &7Left Side" to run function bg_set_banner(player, "left")
+				make a gui slot 0 of player with {bg::banner} named "&8&l» &7Left Side" to run function bg_set_banner(player, "left")
 			make a gui slot 2 of player with fence gate named "&7¯\_(ツ)_/¯" to do nothing
 			if {bg::stats.BANNER::right::%uuid of player%} is set:
 				make a gui slot 4 of player with {bg::stats.BANNER::right::%uuid of player%} named "&8&l» &7Left Side" to run function bg_set_banner(player, "right")
 			if {bg::stats.BANNER::right::%uuid of player%} is not set:
-				make a gui slot 4 of player with black banner named "&8&l» &7Right Side" to run function bg_set_banner(player, "right")				
+				make a gui slot 4 of player with {bg::banner} named "&8&l» &7Right Side" to run function bg_set_banner(player, "right")				
 		if arg 1 is "leave":	
 			bg_leave(player)
 		if arg 1 is "autojoin":		
@@ -384,6 +389,15 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 				else:
 					send "&aThis arena not exists"
 	
+on place of birch stairs:
+#	if yaml value "settings.build-system" from "leaf.bg.config" is true:
+	stop
+
+function bg_equip_build(p: player):
+	set slot 0 of {_p} to stone sword
+	set slot 4 of {_p} to birch stairs
+	set slot 8 of {_p} to stone pickaxe
+
 on PlayerArmorStandManipulateEvent:
 	if {bg::player::%uuid of event.getPlayer()%::state} is set:	
 		cancel event
@@ -834,14 +848,14 @@ function bg_parachute(p: player):
 	if {bg::stats.BANNER::left::%{_uuid}%} is set:	
 		set {_left}'s helmet to {bg::stats.BANNER::left::%{_uuid}%}
 	else:
-		set {_left}'s helmet to black banner
+		set {_left}'s helmet to {bg::banner}
 	add "{Pose:{Head:[265f,94f,0f]},NoGravity:1b,Invisible:1b}" to nbt of {_left}
 	spawn an armor stand at {_p}
 	set {_right} to spawned armor stand
 	if {bg::stats.BANNER::right::%{_uuid}%} is set:	
 		set {_right}'s helmet to {bg::stats.BANNER::right::%{_uuid}%}
 	else:
-		set {_right}'s helmet to black banner
+		set {_right}'s helmet to {bg::banner}
 	add "{Pose:{Head:[265f,270f,0f]},NoGravity:1b,Invisible:1b}" to nbt of {_right}
 	spawn an armor stand at {_p}		
 	set {_center} to spawned armor stand	
