@@ -26,7 +26,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 0.1.1-B
+	plugin-version: 0.1.2
 
 	allow-jump-after: 20 # blocks
 
@@ -68,8 +68,7 @@ on load:
 		loop-value contains "leaf.bg.config"
 		unload yaml loop-value-1
 	load yaml "plugins/Battlegrounds/config.yml" as "leaf.bg.config"	
-	check_yaml("config", "settings.chat-format", "&3{player} &8» &7{message}")		
-	check_yaml("config", "settings.build-system", "true", "boolean")	
+	check_yaml("config", "settings.chat-format", "&3{player} &8» &7{message}")			
 	check_yaml("config", "settings.chest.enabled", "true", "boolean")
 	check_yaml("config", "settings.chest.min", "3", "number")		
 	check_yaml("config", "settings.chest.max", "6", "number")			
@@ -389,15 +388,6 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 				else:
 					send "&aThis arena not exists"
 	
-on place of birch stairs:
-#	if yaml value "settings.build-system" from "leaf.bg.config" is true:
-	stop
-
-function bg_equip_build(p: player):
-	set slot 0 of {_p} to stone sword
-	set slot 4 of {_p} to birch stairs
-	set slot 8 of {_p} to stone pickaxe
-
 on PlayerArmorStandManipulateEvent:
 	if {bg::player::%uuid of event.getPlayer()%::state} is set:	
 		cancel event
@@ -492,41 +482,37 @@ function bg_death_chest(p: player, arena: text):
 		loop items in {_p}'s inventory:
 			drop loop-item at {_p}	
 
-on death of player:
-	if {bg::arena::%{bg::player::%uuid of victim%::arena}%::cache::status} is set:
-		set death message to ""
-		set {_arena} to {bg::player::%uuid of victim%::arena}
-		set {_players-left} to size of {bg::arena::%{_arena}%::cache::ninjas::*}
-		if attacker is set:
-			attacker is not victim
-			add 1 to {bg::stats.kills::%uuid of attacker%}
-			add 1 to {bg::player::%uuid of attacker%::kills}
-			set {_tool} to attacker's tool
-			if name of attacker's tool is set:
-				set {_display} to name of attacker's tool
+function bg_player_death(p: player, killer: text = "null"):
+	set {_uuid} to uuid of {_p}
+	set {_arena} to {bg::player::%{_uuid}%::arena}
+	set {_players-left} to size of {bg::arena::%{_arena}%::cache::ninjas::*}
+	bg_death_chest({_p}, {_arena})
+	bg_remove({_p}, {_arena})
+	create lightning effect at {_p}
+	add {_p} to {bg::arena::%{_arena}%::cache::bad-ninjas::*}
+	add 1 to {bg::stats.deaths::%{_uuid}%}
+	set {_p}'s gamemode to spectator
+	send title "&e&l##%size of {bg::arena::%{_arena}%::cache::ninjas::*}+1% &c&lGAME OVER" with subtitle "&eBATTLE ROYALE" to {_p} for 70 ticks
+	if {_killer} != "null":
+		set {_killer} to {_killer} parsed as player
+		if {_killer} is not {_p}:
+			set {_uuid2} to uuid of {_killer}
+			add 1 to {bg::stats.kills::%{_uuid2}%}
+			add 1 to {bg::player::%{_uuid2}%::kills}
+			set {_tool} to {_killer}'s tool
+			if name of {_killer}'s tool is set:
+				set {_display} to name of {_killer}'s tool
 			else:
 				set {_display} to "%{_tool}%"
 				set {_display} to first element of {_display} split at " of " 
 				replace all "_" with " " in {_display}
-			set {_bar} to replacer "{victim}", "{players-left}", "{kills}", "{tool}" and "{attacker}" with victim's display name, "%{_players-left}%", "%{bg::player::%uuid of attacker%::kills}%", "%{_display}%" and attacker's display name in yaml value "messages.kill.action-bar" from "leaf.bg.config"
-			send replacer "{victim}", "{players-left}", "{kills}", "{tool}" and "{attacker}" with victim's display name, "%{_players-left}%", "%{bg::player::%uuid of attacker%::kills}%", "%{_display}%" and attacker's display name in yaml value "messages.kill.msg" from "leaf.bg.config" to {bg::arena::%{_arena}%::cache::ninjas::*}
-			show an action bar with "%{_bar}%" to attacker 
+			set {_bar} to replacer "{victim}", "{players-left}", "{kills}", "{tool}" and "{attacker}" with {_p}'s display name, "%{_players-left}%", "%{bg::player::%{_uuid2}%::kills}%", "%{_display}%" and {_killer}'s display name in yaml value "messages.kill.action-bar" from "leaf.bg.config"
+			send replacer "{victim}", "{players-left}", "{kills}", "{tool}" and "{attacker}" with {_p}'s display name, "%{_players-left}%", "%{bg::player::%{_uuid2}%::kills}%", "%{_display}%" and {_killer}'s display name in yaml value "messages.kill.msg" from "leaf.bg.config" to {bg::arena::%{_arena}%::cache::ninjas::*}
+			show an action bar with "%{_bar}%" to {_killer} 
 		else:
-			send replacer "{victim}" with victim's display name in yaml value "messages.death" from "leaf.bg.config" to {bg::arena::%{_arena}%::cache::ninjas::*}
-		bg_death_chest(victim, {_arena})
-		clear drops
-		create lightning effect at victim
-		bg_remove(victim, {_arena})
-		add 1 to {bg::stats.deaths::%uuid of victim%}
-		set {_victim} to victim
-		add {_victim} to {bg::arena::%{_arena}%::cache::bad-ninjas::*}
-		set victim's gamemode to spectator
-		wait a tick
-		victim.spigot().respawn()
-		wait a tick
-		teleport victim to attacker
-		send title "&e&l##%size of {bg::arena::%{_arena}%::cache::ninjas::*}+1% &c&lGAME OVER" with subtitle "&eBATTLE ROYALE" to victim for 70 ticks
-
+			send replacer "{victim}" with {_p}'s display name in yaml value "messages.death" from "leaf.bg.config" to {bg::arena::%{_arena}%::cache::ninjas::*}			
+	else:
+		send replacer "{victim}" with {_p}'s display name in yaml value "messages.death" from "leaf.bg.config" to {bg::arena::%{_arena}%::cache::ninjas::*}
 
 on damage of player:
 	if {bg::player::%uuid of victim%::state} is "IN-GAME":
@@ -534,6 +520,13 @@ on damage of player:
 			cancel event
 			damage cause is void
 			teleport victim to {bg::arena::%{bg::player::%uuid of victim%::arena}%::lobby}
+		if {bg::arena::%{bg::player::%uuid of victim%::arena}%::cache::status} is "INGAME" or "FLYING":
+			if damage is greater than or equal to health of victim:
+				cancel event
+				if attacker is set:
+					bg_player_death(victim, "%attacker%")
+				else:
+					bg_player_death(victim)					
 		if {bg::arena::%{bg::player::%uuid of victim%::arena}%::cache::status} is "RESTARTING":				
 			cancel event	
 						
@@ -820,7 +813,7 @@ function bg_start(arena: text):
 			push {_plane} upwards at speed 0.1
 		if y-coords of {_p} > y-coords of {_end} +10:	
 			push {_plane} downwards at speed 0.1	
-		if {_w}.getWorldBorder().isInside(location of {_plane}) is false:
+		if distance between {_end} and {_plane} <= 10:
 			bg_plane_evacuate({_arena}, {_plane})						
 		wait a tick
 
