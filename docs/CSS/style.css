@@ -27,7 +27,17 @@ body {
    border-radius: 5px;
    max-width: 500px;
    min-height: 500px;
-   box-shadow: 15px 15px rgb(0, 0, 0, 0.2);
+   box-shadow: 10px 10px rgb(0, 0, 0, 0.1);
+}
+
+#container2 {
+   background-color: white;
+   padding: 40px;
+   display: grid;
+   border-radius: 5px;
+   max-width: autob;
+   min-height: 30px;
+   box-shadow: 10px 10px rgb(0, 0, 0, 0.2);
 }
 
 h1 {font-size: 2.8em;}
@@ -47,6 +57,13 @@ h3 {font-size: 2em;}
    color: white;
    padding: 15px;
    background-color: #2ecc71;
+   font-size: 1em;
+}
+
+.button2 {
+   text-decoration: none;
+   color: white;
+   padding: 15px;
    font-size: 1em;
 }
 
