@@ -26,7 +26,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 0.1.4
+	plugin-version: 0.1.5
 
 	allow-jump-after: 20 # blocks
 	
@@ -121,7 +121,7 @@ on load:
 	check_yaml("config", "messages.kill.action-bar", "&7You killed &c{victim} &7with &e{tool} &7- {players-left} &7left &c{kills} &cKILLS")	
 	check_yaml("config", "messages.death", "&9➜ &a{victim} &7died")	
 	check_yaml("config", "messages.starting", "&eThe battle starts in &a{seconds} &eseconds")	
-	check_yaml("config", "messages.stats", "&e&l✦&7&l&m--------------------------------------&e&l✦||||&8&l»          &6&lBATTLEGROUNDS STATS        &8&l«||||&6&l» &7&lWINS &c{wins}||&6&l» &7&lKILLS &c{kills}||&6&l» &7&lDEATHS &c{deaths}||||&e&l✦&7&l&m--------------------------------------&e&l✦", "list")		
+	check_yaml("config", "messages.stats", "&e&l✦&7&l&m--------------------------------------&e&l✦||||&8&l»          &6&lBATTLEGROUNDS STATS        &8&l«||||&6&l» &7&lWins &c{Wins}||&6&l» &7&lKills &c{Kills}||&6&l» &7&lPlayedGames &c{PlayedGames}||&6&l» &7&lChests &c{Chest}||&6&l» &7&lDeaths &c{deaths}||||&e&l✦&7&l&m--------------------------------------&e&l✦", "list")		
 	check_yaml("config", "messages.summary", "||||||&e✦ &7Battle Royale &e✦||||&aWinner &7- &e{player}||&aKills &7- &e{kills}||||||", "list")			
 	save yaml "leaf.bg.config"
 	minecraft version contains "1.8":
@@ -155,6 +155,14 @@ function bg_send_arena_status(p: player):
 			send "&f/bg set-route-end &e%{_arena}% &fand /bg save-route &e%{_arena}%" to {_p}
 		if {bg::arena::%{_arena}%::start::1} and {bg::arena::%{_arena}%::end::1} is set:
 			send "&a&l✔ &fArena route(s) set. &a(%size of {bg::arena::%{_arena}%::start::*}%&a)" to {_p}
+		if {bg::arena::%{_arena}%::minplayers} is set:		
+			send "&a&l✔ &fArena min players set." to {_p}
+		if {bg::arena::%{_arena}%::minplayers} is not set:		
+			send "&c&l✘ &fArena min players is not set." to {_p}	
+		if {bg::arena::%{_arena}%::maxplayers} is set:		
+			send "&a&l✔ &fArena max players set." to {_p}
+		if {bg::arena::%{_arena}%::maxplayers} is not set:		
+			send "&c&l✘ &fArena max players is not set." to {_p}							
 		send "&fTo save arena use &a/bg savearena &e%{_arena}%" to {_p}
 		send "&e&l✦&7&l&m------------------------------------&e&l✦" to {_p}		
 
@@ -196,7 +204,9 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 				send "&7/bg start"				
 				send "&7/bg resetstats &8(&7player_name&8)"				
 				send "&7/bg createarena &8(&7arena_name&8)"			
-				send "&7/bg setarenalobby &8(&7arena_name&8)"	
+				send "&7/bg setarenalobby &8(&7arena_name&8)"
+				send "&7/bg setminplayers &8(&7arena_name&8) &8(&7number&8)"
+				send "&7/bg setmaxplayers &8(&7arena_name&8) &8(&7number&8)"	
 				send "&7/bg setcenter &8(&7arena_name&8)"	
 				send "&7/bg add-border &8(&7arena_name&8)"									
 				send "&7/bg remove-border &8(&7arena_name&8)"					
@@ -275,7 +285,7 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 		if arg-1 is "stats":
 			loop yaml list "messages.stats" from "leaf.bg.config":
 				set {_msg} to loop-value-1
-				loop "wins", "kills" and "deaths":
+				loop "Kills", "Wins", "Deaths", "PlayedGames" and "Chests":
 					replace all "{%loop-value-2%}" with "%{bg::stats::%loop-value-2%::%uuid of player%}%" in {_msg}
 				send colored {_msg} to player
 		if arg 1 is "createarena":	
@@ -297,7 +307,19 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 					bg_send_arena_status(player)
 					send "&aLobby for Arena &3%arg-2% &ahas been set!"						
 				else:
-					send "&aThis arena not exists"											
+					send "&aThis arena not exists"		
+		if arg 1 is "setmaxplayers" or "setminplayers":
+			if player has permission "bg.admin":		
+				if {bg::arena::%arg-2%::state} is "created" or "ready":
+					set {_type} to arg-1
+					replace all "set" with "" in {_type}
+					set {bg::arena::%arg-2%::%arg-2%} to arg-3
+					bg_send_arena_status(player)
+					replace all "maxplayers" with "Max Players" in {_type}
+					replace all "minplayers" with "Min Players" in {_type}
+					send "&a%{_type}% for Arena &3%arg-2% &ahas been set!"						
+				else:
+					send "&aThis arena not exists"																
 		if arg 1 is "setlobby":	
 			if player has permission "bg.admin":
 				set {bg::lobby} to location of player
@@ -386,13 +408,19 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 						if {bg::arena::%arg-2%::start::1} is set:
 							if {bg::arena::%arg-2%::end::1} is set:							
 								if {bg::arena::%arg-2%::center} is set:	
-									if size of {bg::arena::%arg-2%::borders::*} > 0:
-										set {bg::arena::%arg-2%::state} to "ready"
-										add arg-2 to {bg::arenas::*}
-										send "&aArena &c%arg-2% &ahas been saved."
-										bg_resetarena(arg-2)	
+									if {bg::arena::%arg-2%::maxplayers} is set:	
+										if {bg::arena::%arg-2%::minplayers} is set:	
+											if size of {bg::arena::%arg-2%::borders::*} > 0:
+												set {bg::arena::%arg-2%::state} to "ready"
+												add arg-2 to {bg::arenas::*}
+												send "&aArena &c%arg-2% &ahas been saved."
+												bg_resetarena(arg-2)	
+											else:
+												send "&aNo borders added."
+										else:
+											send "&aMin players not set!"												
 									else:
-										send "&aNo borders added."											
+										send "&aMax players not set!"									
 								else:
 									send "&aCenter is not set!"										
 							else:
@@ -474,6 +502,7 @@ on right click on chest or trapped chest:
 					set {_item} to random element out of {_loot::*}
 					remove {_item} from {_loot::*}
 					add {_item} to slot {_slot} of event-block
+				add 1 to {bg::stats::Chests::%uuid of player%}
 				set {bg::arena::%{bg::cache::player::%player%::arena}%::cache::CHESTS::%location of event-block%} to location of event-block
 					
 on hunger bar change:	
@@ -513,14 +542,14 @@ function bg_player_death(p: player, killer: text = "null"):
 	bg_remove({_p}, {_arena})
 	create lightning effect at {_p}
 	add {_p} to {bg::arena::%{_arena}%::cache::bad-ninjas::*}
-	add 1 to {bg::stats::deaths::%{_uuid}%}
+	add 1 to {bg::stats::Deaths::%{_uuid}%}
 	set {_p}'s gamemode to spectator
 	send title "&e&l##%size of {bg::arena::%{_arena}%::cache::ninjas::*}+1% &c&lGAME OVER" with subtitle "&eBATTLE ROYALE" to {_p} with 10 fadein and 10 fadeout for 70
 	if {_killer} != "null":
 		set {_killer} to {_killer} parsed as player
 		if {_killer} is not {_p}:
 			set {_uuid2} to uuid of {_killer}
-			add 1 to {bg::stats::kills::%{_uuid2}%}
+			add 1 to {bg::stats::Kills::%{_uuid2}%}
 			add 1 to {bg::cache::player::%{_killer}%::kills}
 			set {_tool} to {_killer}'s tool
 			if name of {_killer}'s tool is set:
@@ -565,7 +594,7 @@ function bg_remove(p: player, arena: text):
 					replace all "{player}" with "%loop-value-1%" in {_msg}
 					replace all "{kills}" with "%{bg::cache::player::%loop-value-1%::kills}%" in {_msg}
 					send message centered colored {_msg} to {bg::arena::%{_arena}%::cache::ninjas::*} and {bg::arena::%{_arena}%::cache::bad-ninjas::*}
-				add 1 to {bg::stats::wins::%uuid of loop-value%}
+				add 1 to {bg::stats::Wins::%uuid of loop-value%}
 				loop 10 times:
 					if {bg::cache::player::%loop-value-1%::state} is "IN-GAME":
 						launch "BALL" firework at location of loop-value-1 timed 1 coloured "RED" and "BLUE" AND "YELLOW" AND "GREEN"
@@ -595,6 +624,10 @@ on load:
 	send " " to console
 	send "&7&l--------------------------------------------" to console
 	loop {bg::arenas::*}:
+		if {bg::arena::%loop-value%::maxplayers} is not set:
+			set {bg::arena::%loop-value%::maxplayers} to 100
+		if {bg::arena::%loop-value%::minplayers} is not set:
+			set {bg::arena::%loop-value%::maxplayers} to 2			
 		delete {bg::arena::%loop-value-1%::cache::ninjas::*} and {bg::arena::%loop-value-1%::cache::bad-ninjas::*}
 		bg_resetarena(loop-value-1)
 		loop numbers between 1 and {bg::arena::%loop-value-1%::route::id}:
@@ -614,11 +647,11 @@ on unload:
 function bg_stats(do: text, p: player):
 	set {_uuid} to uuid of {_p}
 	{_do} is "check":
-		loop "kills", "deaths" and "wins":
+		loop "Kills", "Wins", "Deaths", "PlayedGames" and "Chests":
 			{bg::stats::%loop-value%::%{_uuid}%} is not set
 			set {bg::stats::%loop-value%::%{_uuid}%} to 0
 	{_do} is "reset":
-		loop "kills", "deaths" and "wins":
+		loop "Kills", "Wins", "Deaths", "PlayedGames" and "Chests":
 			set {bg::stats::%loop-value%::%{_uuid}%} to 0	
 	
 function bg_leave(p: player):
@@ -640,14 +673,14 @@ function bg_join(p: player, arena: text):
 	if {bg::cache::player::%{_p}%::state} is not set:
 		if {bg::arena::%{_arena}%::state} is "ready":
 			if {bg::arena::%{_arena}%::cache::status} is "WAITING" or "STARTING":
-				if size of {bg::arena::%{_arena}%::cache::ninjas::*} < 100:
+				if size of {bg::arena::%{_arena}%::cache::ninjas::*} < {bg::arena::%{_arena}%::maxplayers}:
 					bg_clear_player({_p})
 					set {bg::cache::player::%{_p}%::state} to "IN-GAME"
 					set {bg::cache::player::%{_p}%::arena} to {_arena}
 					set {bg::cache::player::%{_p}%::kills} to 0
 					set slot yaml value "settings.items.leave.slot" from "leaf.bg.config" of {_p} to yaml value "settings.items.leave.item" from "leaf.bg.config" parsed as material named yaml value "settings.items.leave.name" from "leaf.bg.config"
 					add {_p} to {bg::arena::%{_arena}%::cache::ninjas::*}		
-					if size of {bg::arena::%{_arena}%::cache::ninjas::*} = 2:
+					if size of {bg::arena::%{_arena}%::cache::ninjas::*} = {bg::arena::%{_arena}%::minplayers}:
 						bg_start_countdown({_arena})											
 					send replacer "{player}" and "{players-count}" with {_p}'s display name and "%size of {bg::arena::%{_arena}%::cache::ninjas::*}%" in yaml value "messages.join" from "leaf.bg.config" to {bg::arena::%{_arena}%::cache::ninjas::*}
 					teleport {_p} to {bg::arena::%{_arena}%::lobby}
@@ -849,6 +882,7 @@ function bg_start(arena: text):
 		apply invisibility without any particles to loop-value for 7 days
 		loop-value-1.setAllowFlight(true)
 		loop-value-1.setFlying(true)
+		add 1 to {bg::stats::PlayedGames::%uuid of loop-value%}
 		bg_player_track_plane(loop-value, {_arena}, {_start}, {_plane})				
 
 function bg_clear_parachute(p: player):
