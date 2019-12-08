@@ -313,7 +313,7 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 				if {bg::arena::%arg-2%::state} is "created" or "ready":
 					set {_type} to arg-1
 					replace all "set" with "" in {_type}
-					set {bg::arena::%arg-2%::%{_type}%} to arg-3
+					set {bg::arena::%arg-2%::%{_type}%} to arg-3 parsed as number
 					bg_send_arena_status(player)
 					replace all "maxplayers" with "Max Players" in {_type}
 					replace all "minplayers" with "Min Players" in {_type}
