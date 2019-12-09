@@ -171,6 +171,7 @@ function bg_set_banner(p: player, side: text):
 	set {_uuid} to uuid of {_p}
 	open chest inventory with 2 rows named "&3Banner for &e%{_side}% &3side" to {_p}	
 	set {_slot} to 0				
+	wait a tick
 	loop "Black", "Red", "Dark Green", "Brown", "Blue", "Purple", "Cyan", "Gray", "Pink", "Light Green", "Yellow", "Light Blue", "Magenta", "Orange" and "White":
 		minecraft version contains "1.8" or "1.9" or "1.10" or "1.11" or "1.12":
 			set {_banner} to "%loop-value% banner item" parsed as material
@@ -587,19 +588,21 @@ function bg_remove(p: player, arena: text):
 	if {bg::arena::%{_arena}%::cache::status} is "INGAME" or "FLYING" or "RESTARTING":	
 		size of {bg::arena::%{_arena}%::cache::ninjas::*} is 1:
 			set {bg::arena::%{_arena}%::cache::status} to "RESTARTING"
+			bg_delete_arena_entities({_arena})
 			loop {bg::arena::%{_arena}%::cache::ninjas::*}:
-				send title "&e&l##1 &a&lYOU WON" with subtitle "&eBATTLE ROYALE" to loop-value-1 with 10 fadein and 10 fadeout for 80
-				loop yaml list "messages.summary" from "leaf.bg.config":
-					set {_msg} to loop-value-2
-					replace all "{player}" with "%loop-value-1%" in {_msg}
-					replace all "{kills}" with "%{bg::cache::player::%loop-value-1%::kills}%" in {_msg}
-					send message centered colored {_msg} to {bg::arena::%{_arena}%::cache::ninjas::*} and {bg::arena::%{_arena}%::cache::bad-ninjas::*}
-				add 1 to {bg::stats::Wins::%uuid of loop-value%}
-				loop 10 times:
-					if {bg::cache::player::%loop-value-1%::state} is "IN-GAME":
-						launch "BALL" firework at location of loop-value-1 timed 1 coloured "RED" and "BLUE" AND "YELLOW" AND "GREEN"
-						wait a second				
-				bg_resetarena({_arena})
+				set {_p} to loop-value-1
+			send title "&e&l##1 &a&lYOU WON" with subtitle "&eBATTLE ROYALE" to {_p} with 10 fadein and 10 fadeout for 80
+			loop yaml list "messages.summary" from "leaf.bg.config":
+				set {_msg} to loop-value-1
+				replace all "{player}" with "%{_p}%" in {_msg}
+				replace all "{kills}" with "%{bg::cache::player::%{_p}%::kills}%" in {_msg}
+				send message centered colored {_msg} to {bg::arena::%{_arena}%::cache::ninjas::*} and {bg::arena::%{_arena}%::cache::bad-ninjas::*}
+			add 1 to {bg::stats::Wins::%uuid of loop-value%}
+			loop 10 times:
+				if {bg::cache::player::%{_p}%::state} is "IN-GAME":
+					launch "BALL" firework at location of {_p} timed 1 coloured "RED" and "BLUE" AND "YELLOW" AND "GREEN"
+					wait a second				
+			bg_resetarena({_arena})
 
 on load:
 	delete {bg::cache::*}
@@ -793,7 +796,6 @@ function bg_player_track_plane(p: player, arena: text, start: location, plane: e
 			make {_p} ride {_base}
 		wait a tick
 
-
 function bw_border_closing(arena: text, time: number):
 	set {bg::arena::%{_arena}%::cache::next-border} to "&cBORDER CLOSING"
 	set {_w} to {bg::arena::%{_arena}%::center}'s world
@@ -857,6 +859,7 @@ function bg_start(arena: text):
 	set {bg::arena::%{_arena}%::ROUTE} to rounded random number between 1 and {bg::arena::%{_arena}%::route::id}
 	set {_start} to {bg::arena::%{_arena}%::start::%{bg::arena::%{_arena}%::ROUTE}%}
 	set {_end} to {bg::arena::%{_arena}%::end::%{bg::arena::%{_arena}%::ROUTE}%}	
+	bg_delete_arena_entities({_arena})
 	{_start}.getChunk().load()
 	spawn an ender dragon at {_start}
 	set {_plane} to spawned ender dragon
@@ -941,7 +944,7 @@ function bg_parachute(p: player):
 				{_p}'s pitch > -30
 				push {_base} vector between {_p} and block in front of {_p} at speed 0.06
 			push {_base} downwards at speed 0.06
-			if block at {_p} is not air:
+			if block at {_p} != air:
 				bg_clear_parachute({_p})
 				stop	
 			FastParticle.spawnParticle({_w}, ParticleType.FLAME, location of {_p} and 1)		
@@ -995,26 +998,28 @@ function bg_start_countdown(arena: text):
 		else:
 			stop
 		
+function bg_delete_arena_entities(arena: text):
+	set {_w} to {bg::arena::%{_arena}%::center}'s world
+	loop ...{_w}.getEntities():
+		loop-value != player
+		loop-value.remove()		
+
 function bg_resetarena(arena: text):
 	set {_w} to {bg::arena::%{_arena}%::center}'s world
 	{_w}.getWorldBorder().reset()
 	{_w}.getWorldBorder().setSize(10000)
 	loop {bg::arena::%{_arena}%::cache::ninjas::*} and {bg::arena::%{_arena}%::cache::bad-ninjas::*}:
-		loop "fly", "arena" and "state":
-			delete {bg::cache::player::%uuid of loop-value-1%::%loop-value-2%}		
+		delete {bg::cache::player::%loop-value-1%::*}		
 		bg_clear_player(loop-value-1)
 		delete scoreboard of loop-value-1
 		teleport loop-value-1 to {bg::lobby}
-		set velocity of loop-value-1 to new vector 0, 0, 0
 	loop {bg::arena::%{_arena}%::cache::CHESTS::*}:
 		clear inventory of block at loop-value
 	loop {bg::arena::%{_arena}%::cache::KILL-ME-PLS::*}:
 		set block at loop-value to air
 		remove loop-value from {bg::arena::%{_arena}%::cache::KILL-ME-PLS::*}
 	delete {bg::arena::%{_arena}%::cache::*}	
-	loop ...{_w}.getEntities():
-		loop-value is not player
-		loop-value.remove()
+	bg_delete_arena_entities({_arena})
 	loop {bg::arena::%{_arena}%::PLACED-BLOCKS::*}:
 		set block at location of {bg::arena::%{_arena}%::PLACED-BLOCKS::%loop-index%} to air
 		wait a tick
@@ -1037,9 +1042,9 @@ function bg_clear_player(p: player):
 	set {_p}'s gamemode to survival
 	loop ...{_p}.getActivePotionEffects():
 		{_p}.removePotionEffect(loop-value.getType())	
+	set velocity of loop-value-1 to new vector 0, 0, 0	
 	loop "BG-FLYING" and "BG-PARACHUTE":
 		delete metadata value "%loop-value-1%" of {_p}
-
 
 function bg_get_direction(p: player, target: location) :: text:
 	set {_vector} to {_target}.toVector().subtract({_p}.getLocation().toVector())
