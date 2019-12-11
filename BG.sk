@@ -11,8 +11,10 @@ import:
 	com.fren_gor.packetUtils.events.PacketRetriveEvent
 	org.bukkit.event.player.PlayerArmorStandManipulateEvent
 	org.bukkit.event.player.PlayerInteractEvent	
-		
-
+	com.comphenix.protocol.events.PacketEvent
+	com.comphenix.protocol.events.PacketListener
+	
+	
 option nms:
     get: 
         set {_nms} to Bukkit.getServer().getClass().getPackage().getName().split("\.")[3]
@@ -26,7 +28,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 0.1.6
+	plugin-version: 0.1.7
 
 	allow-jump-after: 20 # blocks
 	
@@ -158,11 +160,11 @@ function bg_send_arena_status(p: player):
 		if {bg::arena::%{_arena}%::minplayers} is set:		
 			send "&a&l✔ &fArena min players set." to {_p}
 		if {bg::arena::%{_arena}%::minplayers} is not set:		
-			send "&c&l✘ &fArena min players is not set." to {_p}	
+			send "&c&l✘ &fArena min players is not set, use /bg setminplayers &e%{_arena}% (number)" to {_p}	
 		if {bg::arena::%{_arena}%::maxplayers} is set:		
 			send "&a&l✔ &fArena max players set." to {_p}
 		if {bg::arena::%{_arena}%::maxplayers} is not set:		
-			send "&c&l✘ &fArena max players is not set." to {_p}							
+			send "&c&l✘ &fArena max players is not sett, use /bg setmaxplayers &e%{_arena}% (number)" to {_p}							
 		send "&fTo save arena use &a/bg savearena &e%{_arena}%" to {_p}
 		send "&e&l✦&7&l&m------------------------------------&e&l✦" to {_p}		
 
@@ -549,18 +551,18 @@ function bg_player_death(p: player, killer: text = "null"):
 	if {_killer} != "null":
 		set {_killer} to {_killer} parsed as player
 		if {_killer} is not {_p}:
-			set {_uuid2} to uuid of {_killer}
-			add 1 to {bg::stats::Kills::%{_uuid2}%}
+			set {_uuid} to uuid of {_killer}
+			add 1 to {bg::stats::Kills::%{_uuid}%}
 			add 1 to {bg::cache::player::%{_killer}%::kills}
-			set {_tool} to {_killer}'s tool
-			if name of {_killer}'s tool is set:
+			if {_killer}'s tool is set:
 				set {_display} to name of {_killer}'s tool
-			else:
-				set {_display} to "%{_tool}%"
 				set {_display} to first element of {_display} split at " of " 
 				replace all "_" with " " in {_display}
+			else:
+				set {_display} to "Unknown"
 			set {_bar} to replacer "{victim}", "{players-left}", "{kills}", "{tool}" and "{attacker}" with {_p}'s display name, "%{_players-left}%", "%{bg::cache::player::%{_killer}%::kills}%", "%{_display}%" and {_killer}'s display name in yaml value "messages.kill.action-bar" from "leaf.bg.config"
-			send replacer "{victim}", "{players-left}", "{kills}", "{tool}" and "{attacker}" with {_p}'s display name, "%{_players-left}%", "%{bg::cache::player::%{_killer}%::kills}%", "%{_display}%" and {_killer}'s display name in yaml value "messages.kill.msg" from "leaf.bg.config" to {bg::arena::%{_arena}%::cache::ninjas::*}
+			set {_msg} to replacer "{victim}", "{players-left}", "{kills}", "{tool}" and "{attacker}" with {_p}'s display name, "%{_players-left}%", "%{bg::cache::player::%{_killer}%::kills}%", "%{_display}%" and {_killer}'s display name in yaml value "messages.kill.msg" from "leaf.bg.config"
+			send {_msg} to {bg::arena::%{_arena}%::cache::ninjas::*}
 			send action bar "%{_bar}%" to {_killer} 
 		else:
 			send replacer "{victim}" with {_p}'s display name in yaml value "messages.death" from "leaf.bg.config" to {bg::arena::%{_arena}%::cache::ninjas::*}			
@@ -597,7 +599,8 @@ function bg_remove(p: player, arena: text):
 				replace all "{player}" with "%{_p}%" in {_msg}
 				replace all "{kills}" with "%{bg::cache::player::%{_p}%::kills}%" in {_msg}
 				send message centered colored {_msg} to {bg::arena::%{_arena}%::cache::ninjas::*} and {bg::arena::%{_arena}%::cache::bad-ninjas::*}
-			add 1 to {bg::stats::Wins::%uuid of loop-value%}
+			set {_uuid} to uuid of {_p}
+			add 1 to {bg::stats::Wins::%{_uuid}%}
 			loop 10 times:
 				if {bg::cache::player::%{_p}%::state} is "IN-GAME":
 					launch "BALL" firework at location of {_p} timed 1 coloured "RED" and "BLUE" AND "YELLOW" AND "GREEN"
@@ -746,27 +749,22 @@ on damage of entity:
 	metadata value "BG-PARACHUTE" of victim is set:
 		cancel event
 
-function bg_plane_evacuate(arena: text, plane: entity):
-	loop {bg::arena::%{_arena}%::cache::ninjas::*}:
-		metadata value "BG-FLYING" of loop-value is set:
-			bg_parachute(loop-value)	
-	loop entities in radius 10 of {_plane}:
-		metadata value "BG-PLANE" of loop-entity is "DRAGON":
-			clear loop-entity
-	set {bg::arena::%{_arena}%::cache::status} to "INGAME"		
+function bg_delete_arena_entities(arena: text):
+	set {_w} to {bg::arena::%{_arena}%::center}'s world
+	loop ...{_w}.getEntities():
+		loop-value != player
+		loop-value.remove()		
 
-function bg_plane_track(arena: text, start: location, end: location, plane: entity):
-	while {bg::arena::%{_arena}%::cache::status} is "FLYING":
-		distance between {_start} and {_plane} > {@allow-jump-after}:
-			loop {bg::arena::%{_arena}%::cache::ninjas::*}:
-				metadata value "BG-FLYING" of loop-value is set:	
-					send title "&e" with subtitle "&ePRESS &bSNEAK &eTO OPEN PARACHUTE" to loop-value-1 with 0 fadein and 0 fadeout for 20	
-		distance between {_end} and {_plane} < 50:
-			bg_plane_evacuate({_arena}, {_plane})		
-			set {bg::arena::%{_arena}%::cache::status} to "INGAME"	
-			stop		
-		wait a second
-
+function bg_load_chunks(loc: location):
+	set {_pos} to {_loc}
+	set z-coordinate of {_pos} to z-coordinate of {_loc} - 16 * 4
+	loop 2 * 4 + 1 times:
+		set x-coordinate of {_pos} to x-coordinate of {_loc} - 16 * 4
+		loop 2 * 4 + 1 times:
+			{_pos}.getChunk().load()
+			add 16 to x-coordinate of {_pos}
+		add 16 to z-coordinate of {_pos}
+		
 function bg_player_track_plane2(p: player, arena: text, base: entity, plane: entity):
 	while {bg::arena::%{_arena}%::cache::status} is "FLYING":
 		set {_loc} to location of {_plane}
@@ -777,12 +775,14 @@ function bg_player_track_plane2(p: player, arena: text, base: entity, plane: ent
 function bg_player_track_plane(p: player, arena: text, start: location, plane: entity):
 	add 180 to yaw of {_start}
 	teleport {_p} to {_start}
+	wait a tick
 	loop 10 times:
 		set {_loc} to location of {_plane}
+		add 5 to y-coords of {_loc}
 		set pitch of {_loc} to pitch of {_p}
 		set yaw of {_loc} to yaw of {_p}
 		teleport {_p} to {_loc}
-		wait a tick
+		wait a tick			
 	set {_p}'s gamemode to survival
 	spawn 1 chicken at {_plane}
 	set {_base} to spawned chicken
@@ -791,7 +791,7 @@ function bg_player_track_plane(p: player, arena: text, start: location, plane: e
 	set metadata value "BG-FLYING" of {_p} to true
 	set metadata value "BG-PLANE" of {_base} to {_p}
 	bg_player_track_plane2({_p}, {_arena}, {_base}, {_plane})
-	while metadata value "BG-FLYING" of {_p} is set:
+	loop 10 times:
 		if {_p}'s vehicle is not set:
 			make {_p} ride {_base}
 		wait a tick
@@ -852,23 +852,37 @@ function plane_start_route(arena: text, plane: entity, start: location, end: loc
 		if y-coords of {_start} < {_oldY}:
 			set {_calc} to {_oldY} - y-coords of {_start}
 			add {_calc} to y-coords of {_start}
+		if distance between {bg::arena::%{_arena}%::start::%{bg::arena::%{_arena}%::ROUTE}%} and {_plane} > {@allow-jump-after}:
+			loop {bg::arena::%{_arena}%::cache::ninjas::*}:
+				metadata value "BG-FLYING" of loop-value is set:	
+					send title "&e" with subtitle "&ePRESS &bSNEAK &eTO OPEN PARACHUTE" to loop-value-1 with 0 fadein and 0 fadeout for 20		
+		if distance between {_plane} and {bg::arena::%{_arena}%::end::%{bg::arena::%{_arena}%::ROUTE}%} < 50:
+			bg_load_chunks({_start})
+			wait a tick
+			loop {bg::arena::%{_arena}%::cache::ninjas::*}:
+				metadata value "BG-FLYING" of loop-value is set:
+					bg_parachute(loop-value)	
+			loop entities in radius 100 of {bg::arena::%{_arena}%::end::%{bg::arena::%{_arena}%::ROUTE}%}:
+				metadata value "BG-PLANE" of loop-entity is "DRAGON":
+					clear loop-entity	
+			set {bg::arena::%{_arena}%::cache::status} to "INGAME"
+			stop					
 		wait a tick	
 
 function bg_start(arena: text):
 	set {bg::arena::%{_arena}%::cache::status} to "FLYING"
-	set {bg::arena::%{_arena}%::ROUTE} to rounded random number between 1 and {bg::arena::%{_arena}%::route::id}
+	set {bg::arena::%{_arena}%::ROUTE} to rounded random number between 1 and {bg::arena::%{_arena}%::route::id}-1
 	set {_start} to {bg::arena::%{_arena}%::start::%{bg::arena::%{_arena}%::ROUTE}%}
 	set {_end} to {bg::arena::%{_arena}%::end::%{bg::arena::%{_arena}%::ROUTE}%}	
 	bg_delete_arena_entities({_arena})
 	{_start}.getChunk().load()
 	spawn an ender dragon at {_start}
 	set {_plane} to spawned ender dragon
-	set metadata value "BG-PLANE" of {_plane} to "DRAGON"
 	if minecraft version contains "1.8":
 		add "{Silent:1,NoGravity:1b,CustomName:""%yaml value ""settings.mix.dragon-name"" from ""leaf.bg.config""%"",DragonPhase:10}" to nbt of {_plane} 
 	else:
 		add "{Silent:1b,NoGravity:1b,Name:""%yaml value ""settings.mix.dragon-name"" from ""leaf.bg.config""%"",DragonPhase:0}" to nbt of {_plane} 
-	bg_plane_track({_arena}, {_start}, {_end}, {_plane})
+	set metadata value "BG-PLANE" of {_plane} to "DRAGON"		
 	set {_w} to {bg::arena::%{_arena}%::center}'s world
 	set {bg::arena::%{_arena}%::cache::border::current-size} to {bg::arena::%{_arena}%::border::first}
 	set {bg::arena::%{_arena}%::cache::game-border} to a random element out of {bg::arena::%{_arena}%::borders::*}
@@ -998,12 +1012,6 @@ function bg_start_countdown(arena: text):
 		else:
 			stop
 		
-function bg_delete_arena_entities(arena: text):
-	set {_w} to {bg::arena::%{_arena}%::center}'s world
-	loop ...{_w}.getEntities():
-		loop-value != player
-		loop-value.remove()		
-
 function bg_resetarena(arena: text):
 	set {_w} to {bg::arena::%{_arena}%::center}'s world
 	{_w}.getWorldBorder().reset()
@@ -1042,7 +1050,7 @@ function bg_clear_player(p: player):
 	set {_p}'s gamemode to survival
 	loop ...{_p}.getActivePotionEffects():
 		{_p}.removePotionEffect(loop-value.getType())	
-	set velocity of loop-value-1 to new vector 0, 0, 0	
+	set velocity of {_p} to new vector 0, 0, 0	
 	loop "BG-FLYING" and "BG-PARACHUTE":
 		delete metadata value "%loop-value-1%" of {_p}
 
