@@ -1,4 +1,4 @@
-# ➭ A Battle Royale Minigame made using Skript for Minecraft:
+# ➭ Battle Royale Minigame made using Skript for Minecraft:
 
 # ➭ Dependencies:
 > ▪ Skript ➥ https://github.com/SkriptLang/Skript/releases
