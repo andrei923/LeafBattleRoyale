@@ -26,10 +26,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 0.1.8
-
-	allow-jump-after: 20 # blocks
-	
+	plugin-version: 0.1.8b
 
 local effect [leaf] send title %string% with subtitle %string% to %players% with %number% fadein and %number% fadeout for %number%:		
 	trigger:
@@ -73,7 +70,7 @@ function check_yaml(dir: text, value: text, set: text, type: text = "TEXT"):
 		loop {_set} split at "||":
 			add loop-value to yaml list {_value} from "leaf.bg.%{_dir}%"
 
-expression nbt of %entity%:
+local expression nbt of %entity%:
     add:
         set {_nbt} to new NBTTagCompound()
         set {_e} to expression-1.getHandle()
@@ -81,7 +78,6 @@ expression nbt of %entity%:
         set {_nbt2} to MojangsonParser.parse(change value)
         {_nbt}.a({_nbt2})
         {_e}.f({_nbt})	
-
 
 #From https://forums.skunity.com/resources/mirrorutils.706/ by EWS
 local expression replacer %texts% with %texts% in %text%:
@@ -113,6 +109,7 @@ on load:
 	check_yaml("config", "Settings.Items.Bandage.Name", "&eBandage")					
 	check_yaml("config", "Settings.Timers.In-Lobby", "30", "number")		
 	check_yaml("config", "Settings.Misc.Dragon-Name", "&eEnder Dragon")	
+	check_yaml("config", "Settings.Misc.Allow-Jump-After", "20", "number")		
 	check_yaml("config", "Settings.Scoreboard.Waiting.Name", "&eBATTLE ROYALE")	
 	check_yaml("config", "Settings.Scoreboard.Waiting.Lines", "&7{now}||||&8▪ &fStarting in &a{timer}||||&8▪ &fPlayers &a{players}||||&8▪ &fArena &a{arena}||||&eplay.my-cool-server.net", "list")
 	check_yaml("config", "Settings.Scoreboard.Game.Name", "&eBATTLE ROYALE")
@@ -254,12 +251,12 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 			if player has permission "bg.admin":	
 				if arg-2 is "add":
 					if player's tool is not air:
-						add player's tool to yaml list "Settings.Chest.custom-loot" from "leaf.bg.config"
+						add player's tool to yaml list "Settings.Chest.Custom-Loot" from "leaf.bg.config"
 						send "&aItem added."
 						save yaml "leaf.bg.config" 	
 				if arg-2 is "remove":
 					if player's tool is not air:
-						remove player's tool from yaml list "Settings.Chest.custom-loot" from "leaf.bg.config"
+						remove player's tool from yaml list "Settings.Chest.Custom-Loot" from "leaf.bg.config"
 						send "&aItem removed."
 						save yaml "leaf.bg.config" 	
 				if arg-2 is "rename":
@@ -468,7 +465,7 @@ on drop:
 		cancel event
 
 on dismount:
-	if distance between {bg::arena::%{bg::cache::player::%player%::arena}%::start::%{bg::arena::%{bg::cache::player::%player%::arena}%::ROUTE}%} and player > {@allow-jump-after}:
+	if distance between {bg::arena::%{bg::cache::player::%player%::arena}%::start::%{bg::arena::%{bg::cache::player::%player%::arena}%::ROUTE}%} and player > yaml value "Settings.Misc.Allow-Jump-After" from "leaf.bg.config":
 		metadata value "BG-FLYING" of player is set
 		bg_parachute(player)	
 		stop
@@ -490,7 +487,7 @@ on PacketRetriveEvent:
 		metadata value "BG-PARACHUTE" of event.getPlayer() is set:
 			event.setCancelled(true)
 		metadata value "BG-FLYING" of event.getPlayer() is set:
-			if distance between {bg::arena::%{bg::cache::player::%event.getPlayer()%::arena}%::start::%{bg::arena::%{bg::cache::player::%event.getPlayer()%::arena}%::ROUTE}%} and event.getPlayer() < {@allow-jump-after}:
+			if distance between {bg::arena::%{bg::cache::player::%event.getPlayer()%::arena}%::start::%{bg::arena::%{bg::cache::player::%event.getPlayer()%::arena}%::ROUTE}%} and event.getPlayer() < yaml value "Settings.Misc.Allow-Jump-After" from "leaf.bg.config":
 				event.setCancelled(true)		
 
 on right click on chest or trapped chest:	
@@ -588,41 +585,41 @@ on damage of player:
 function bg_remove(p: player, arena: text):
 	remove {_p} from {bg::arena::%{_arena}%::cache::ninjas::*}
 	if {bg::arena::%{_arena}%::cache::status} is "IN-GAME" or "FLYING" or "RESTARTING":	
-		size of {bg::arena::%{_arena}%::cache::ninjas::*} is 1:
-			set {bg::arena::%{_arena}%::cache::status} to "RESTARTING"
-			bg_delete_arena_entities({_arena})
-			loop {bg::arena::%{_arena}%::cache::ninjas::*}:
-				set {_p} to loop-value-1
-			send title "&e&l##1 &a&lYOU WON" with subtitle "&eBATTLE ROYALE" to {_p} with 10 fadein and 10 fadeout for 80
-			loop yaml list "Messages.Summary" from "leaf.bg.config":
-				set {_msg} to loop-value-1
-				replace all "{player}" with "%{_p}%" in {_msg}
-				replace all "{kills}" with "%{bg::cache::player::%{_p}%::kills}%" in {_msg}
-				send message centered colored {_msg} to {bg::arena::%{_arena}%::cache::ninjas::*} and {bg::arena::%{_arena}%::cache::bad-ninjas::*}
-			set {_uuid} to uuid of {_p}
-			add 1 to {bg::stats::Wins::%{_uuid}%}
-			loop 10 times:
-				if {bg::cache::player::%{_p}%::state} is "IN-GAME":
-					launch "BALL" firework at location of {_p} timed 1 coloured "RED" and "BLUE" AND "YELLOW" AND "GREEN"
-					wait a second				
-			bg_resetarena({_arena})
+		size of {bg::arena::%{_arena}%::cache::ninjas::*} = 1
+		set {bg::arena::%{_arena}%::cache::status} to "RESTARTING"
+		bg_delete_arena_entities({_arena})
+		loop {bg::arena::%{_arena}%::cache::ninjas::*}:
+			set {_p} to loop-value-1
+		send title "&e&l##1 &a&lYOU WON" with subtitle "&eBATTLE ROYALE" to {_p} with 10 fadein and 10 fadeout for 80
+		loop yaml list "Messages.Summary" from "leaf.bg.config":
+			set {_msg} to loop-value-1
+			replace all "{player}" with "%{_p}%" in {_msg}
+			replace all "{kills}" with "%{bg::cache::player::%{_p}%::kills}%" in {_msg}
+			send message centered colored {_msg} to {bg::arena::%{_arena}%::cache::ninjas::*} and {bg::arena::%{_arena}%::cache::bad-ninjas::*}
+		set {_uuid} to uuid of {_p}
+		add 1 to {bg::stats::Wins::%{_uuid}%}
+		loop 10 times:
+			if {bg::cache::player::%{_p}%::state} is "IN-GAME":
+				launch "BALL" firework at location of {_p} timed 1 coloured "RED" and "BLUE" AND "YELLOW" AND "GREEN"
+				wait a second	
+		bg_resetarena({_arena})
 
 on load:
 	delete {bg::cache::*}
-	loop "place" and "break":
-		loop yaml list "Settings.blocks.allowed-to-%loop-value-1%" from "leaf.bg.config":
+	loop "Place" and "Break":
+		loop yaml list "Settings.Blocks.Allowed-To-%loop-value-1%" from "leaf.bg.config":
 			set {_block} to loop-value-2
 			if {_block} parsed as material is set:
 				add {_block} to {bg::arena::blocks-to-%loop-value-1%::cache::*}
 			else:
-				broadcast "BG: item %loop-value-2% from block to %loop-value-1% is invalid."
+				broadcast "BG: item %loop-value-2% from Blocks To %loop-value-1% is invalid."
 		wait a tick
 	loop yaml list "Settings.Chest.Normal.Loot" from "leaf.bg.config":
 		if loop-value-1 != "bandage":
 			add "%loop-value-1%" parsed as material to {bg::cache::chestItems::cache::*}
 		if loop-value-1 = "bandage":	
 			add paper named yaml value "Settings.Items.Bandage.Name" from "leaf.bg.config" to {bg::cache::chestItems::cache::*}
-	add yaml list "Settings.Chest.custom-loot" from "leaf.bg.config" to {bg::cache::chestItems::cache::*} 			
+	add yaml list "Settings.Chest.Custom-Loot" from "leaf.bg.config" to {bg::cache::chestItems::cache::*} 			
 	send "&7&l--------------------------------------------" to console
 	send " " to console
 	send "&aLoading &ev.{@plugin-version}&a..." to console
@@ -848,7 +845,7 @@ function plane_start_route(arena: text, plane: entity, start: location, end: loc
 		if y-coords of {_start} < {_oldY}:
 			set {_calc} to {_oldY} - y-coords of {_start}
 			add {_calc} to y-coords of {_start}
-		if distance between {bg::arena::%{_arena}%::start::%{bg::arena::%{_arena}%::ROUTE}%} and {_plane} > {@allow-jump-after}:
+		if distance between {bg::arena::%{_arena}%::start::%{bg::arena::%{_arena}%::ROUTE}%} and {_plane} > yaml value "Settings.Misc.Allow-Jump-After" from "leaf.bg.config":
 			loop {bg::arena::%{_arena}%::cache::ninjas::*}:
 				metadata value "BG-FLYING" of loop-value is set:	
 					send title "&e" with subtitle "&ePRESS &bSNEAK &eTO OPEN PARACHUTE" to loop-value-1 with 0 fadein and 0 fadeout for 20		
