@@ -26,7 +26,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 0.1.8b
+	plugin-version: 0.1.9
 
 local effect [leaf] send title %string% with subtitle %string% to %players% with %number% fadein and %number% fadeout for %number%:		
 	trigger:
@@ -114,6 +114,9 @@ on load:
 	check_yaml("config", "Settings.Scoreboard.Waiting.Lines", "&7{now}||||&8▪ &fStarting in &a{timer}||||&8▪ &fPlayers &a{players}||||&8▪ &fArena &a{arena}||||&eplay.my-cool-server.net", "list")
 	check_yaml("config", "Settings.Scoreboard.Game.Name", "&eBATTLE ROYALE")
 	check_yaml("config", "Settings.Scoreboard.Game.Lines", "&7{now}||||&8▪ &fNext Border: &a{next-border}||&8▪ &fPlayers left &a{players-left}/100||&8▪ &fKills &a{kills}||||    {up}||{left}   {right} &fPlay zone||    {back}    {status}||||&c❤ &e{health} &f{player} &7(You)||||&8▪ &fSize {size}x{size}m||||&eplay.my-cool-server.net", "list")
+	check_yaml("config", "Menus.Arena-Browser.Menu", "&8&l» &7Battle Royale Arenas")	
+	check_yaml("config", "Menus.Arena-Browser.Name", "&8» &7Arena: &e{arena}")	
+	check_yaml("config", "Menus.Arena-Browser.Lore", "&8▪ &7Status: &e{status}||&8▪ &7Playing: &e{playing}", "list")
 	check_yaml("config", "Messages.Join", "&a{player} &ehas joined to the game.")	
 	check_yaml("config", "Messages.Leave", "&a{player} &eleft the game.")
 	check_yaml("config", "Messages.Kill.Msg", "&9➜ &a{victim} &7was killed by &a{attacker} &7using &a{tool}")
@@ -226,23 +229,15 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 			bg_join(player, arg-2)
 		if arg 1 is "list":		
 			if {bg::cache::player::%player%::state} is not set:	
-				open chest inventory with 6 rows named "&8&l» &7Battle Royale Arenas" to player
+				open chest inventory with 6 rows named yaml value "Menus.Arena-Browser.Menu" from "leaf.bg.config" to player
 				wait a tick	
 				set {_slot} to 10						
 				loop {bg::arenas::*}:
-					if {bg::arena::%loop-value%::cache::status} is "WAITING":
-						set {_status} to "&aWaiting"
-					if {bg::arena::%loop-value%::cache::status} is "STARTING":
-						set {_status} to "&6Starting"	
-					if {bg::arena::%loop-value%::cache::status} is "FLYING":
-						set {_status} to "&9Flying"		
-					if {bg::arena::%loop-value%::cache::status} is "IN-GAME":
-						set {_status} to "&9Flying"	
-					if {bg::arena::%loop-value%::cache::status} is "RESTARTING":
-						set {_status} to "&cRestarting"		
-					set {_item} to green clay named "&8» &7Arena: &e%loop-value%"
-					set line 1 of {_item}'s lore to "&8▪ &7Status: &e%{_status}%"	
-					set line 2 of {_item}'s lore to "&8▪ &7Playing: &e%size of {bg::arena::%loop-value%::cache::ninjas::*}%"																				
+					set {_item} to green clay named replacer "{arena}" with loop-value-1 in yaml value "Menus.Arena-Browser.Name" from "leaf.bg.config"
+					set {_lore::*} to yaml value "Menus.Arena-Browser.Lore" from "leaf.bg.config"
+					replace all "{status}" with "%{bg::arena::%loop-value%::cache::status}%" in {_lore::*}
+					replace all "{playing}" with "%size of {bg::arena::%loop-value%::cache::ninjas::*}%" in {_lore::*}
+					set lore of {_item} to {_lore::*}																			
 					make a gui slot {_slot} of player with {_item} to run function bg_join(player, loop-value-1)
 					add 1 to {_slot}
 					if {_slot} is 17 or 26 or 35:
@@ -599,6 +594,7 @@ function bg_remove(p: player, arena: text):
 		set {_uuid} to uuid of {_p}
 		add 1 to {bg::stats::Wins::%{_uuid}%}
 		loop 10 times:
+			minecraft version contains "1.8" or "1.9" or "1.10" or "1.11" or "1.12"
 			if {bg::cache::player::%{_p}%::state} is "IN-GAME":
 				launch "BALL" firework at location of {_p} timed 1 coloured "RED" and "BLUE" AND "YELLOW" AND "GREEN"
 				wait a second	
@@ -636,7 +632,8 @@ on load:
 		loop numbers between 1 and {bg::arena::%loop-value-1%::route::id}:
 			{bg::arena::%loop-value-1%::start::%rounded loop-value-2%} is set
 			set y-coords of {bg::arena::%loop-value-1%::start::%rounded loop-value-2%} to y-coords of {bg::arena::%loop-value-1%::end::%rounded loop-value-2%}		
-	set {bg::cache::TitleManager} to Bukkit.getServer().getPluginManager().getPlugin("TitleManager")		
+	set {bg::cache::TitleManager} to Bukkit.getServer().getPluginManager().getPlugin("TitleManager")	
+	set {bg::cache::Items::Leave} to yaml value "Settings.Items.Leave.Item" from "leaf.bg.config" parsed as material named yaml value "Settings.Items.Leave.Name" from "leaf.bg.config"		
 
 on unload:
 	send "&7&l--------------------------------------------" to console
@@ -680,7 +677,7 @@ function bg_join(p: player, arena: text):
 					set {bg::cache::player::%{_p}%::state} to "IN-GAME"
 					set {bg::cache::player::%{_p}%::arena} to {_arena}
 					set {bg::cache::player::%{_p}%::kills} to 0
-					set slot yaml value "Settings.Items.Leave.Slot" from "leaf.bg.config" of {_p} to yaml value "Settings.Items.Leave.Item" from "leaf.bg.config" parsed as material named yaml value "Settings.Items.Leave.Name" from "leaf.bg.config"
+					set slot yaml value "Settings.Items.Leave.Slot" from "leaf.bg.config" of {_p} to {bg::cache::Items::Leave}
 					add {_p} to {bg::arena::%{_arena}%::cache::ninjas::*}		
 					if size of {bg::arena::%{_arena}%::cache::ninjas::*} = {bg::arena::%{_arena}%::minplayers}:
 						bg_start_countdown({_arena})											
