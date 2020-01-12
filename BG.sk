@@ -57,6 +57,16 @@ local effect set scoreboard line %number% of %player% to %string%:
 	trigger:
 		{bg::cache::TitleManager}.setScoreboardValue(expr-2, expr-1 and expr-3)
 
+expression %item% with [leaf] lore %texts%:
+	return type: item
+	get:
+		set {_r} to expr-1
+		loop expressions 2:
+			set {_lore} to loop-value-1
+			add 1 to {_line}			
+			set line {_line} of lore of {_r} to colored {_lore}		
+		return {_r}		
+
 function check_yaml(dir: text, value: text, set: text, type: text = "TEXT"):
 	yaml value {_value} from "leaf.bg.%{_dir}%" is not set:
 		if {_type} is "text":
@@ -234,11 +244,10 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 				set {_slot} to 10						
 				loop {bg::arenas::*}:
 					set {_item} to green clay named replacer "{arena}" with loop-value-1 in yaml value "Menus.Arena-Browser.Name" from "leaf.bg.config"
-					set {_lore::*} to yaml value "Menus.Arena-Browser.Lore" from "leaf.bg.config"
+					set {_lore::*} to yaml list "Menus.Arena-Browser.Lore" from "leaf.bg.config"
 					replace all "{status}" with "%{bg::arena::%loop-value%::cache::status}%" in {_lore::*}
-					replace all "{playing}" with "%size of {bg::arena::%loop-value%::cache::ninjas::*}%" in {_lore::*}
-					set lore of {_item} to {_lore::*}																			
-					make a gui slot {_slot} of player with {_item} to run function bg_join(player, loop-value-1)
+					replace all "{playing}" with "%size of {bg::arena::%loop-value%::cache::ninjas::*}%" in {_lore::*}																	
+					make a gui slot {_slot} of player with {_item} with leaf lore {_lore::*} to run function bg_join(player, loop-value-1)
 					add 1 to {_slot}
 					if {_slot} is 17 or 26 or 35:
 						add 2 to {_slot}
@@ -287,7 +296,7 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 			if player has permission "bg.admin":		
 				if arg-2 is set:
 					if {bg::arena::%arg-2%::state} is not set:
-						set {bg::arena::%arg-2%::state} to "created"
+						set {bg::arena::%arg-2%::state} to "setup"
 						set {bg::cache::player::setup} to arg-2
 						bg_send_arena_status(player)
 						send "&aArena &c%arg-2% &ahas been created!"
@@ -297,7 +306,7 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 					send "&aSpecify Arena!"				
 		if arg 1 is "setarenalobby":
 			if player has permission "bg.admin":		
-				if {bg::arena::%arg-2%::state} is "created" or "ready":
+				if {bg::arena::%arg-2%::state} is "setup" or "ready":
 					set {bg::arena::%arg-2%::lobby} to location of player
 					bg_send_arena_status(player)
 					send "&aLobby for Arena &3%arg-2% &ahas been set!"						
@@ -305,7 +314,7 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 					send "&aThis arena not exists"		
 		if arg 1 is "setmaxplayers" or "setminplayers":
 			if player has permission "bg.admin":		
-				if {bg::arena::%arg-2%::state} is "created" or "ready":
+				if {bg::arena::%arg-2%::state} is "setup" or "ready":
 					set {_type} to arg-1
 					replace all "set" with "" in {_type}
 					set {bg::arena::%arg-2%::%{_type}%} to arg-3 parsed as number
@@ -398,7 +407,7 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 				make console execute command "sk reload %script%"
 		if arg 1 is "savearena":	
 			if player has permission "bg.admin":		
-				if {bg::arena::%arg-2%::state} is "created":
+				if {bg::arena::%arg-2%::state} is "setup":
 					if {bg::arena::%arg-2%::lobby} is set:		
 						if {bg::arena::%arg-2%::start::1} is set:
 							if {bg::arena::%arg-2%::end::1} is set:							
