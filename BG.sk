@@ -174,7 +174,7 @@ function bg_send_arena_status(p: player):
 		if {bg::arena::%{_arena}%::maxplayers} is set:		
 			send "&a&l✔ &fArena max players set." to {_p}
 		if {bg::arena::%{_arena}%::maxplayers} is not set:		
-			send "&c&l✘ &fArena max players is not sett, use /bg setmaxplayers &e%{_arena}% (number)" to {_p}							
+			send "&c&l✘ &fArena max players is not set, use /bg setmaxplayers &e%{_arena}% (number)" to {_p}							
 		send "&fTo save arena use &a/bg savearena &e%{_arena}%" to {_p}
 		send "&e&l✦&7&l&m------------------------------------&e&l✦" to {_p}		
 
