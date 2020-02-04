@@ -349,7 +349,8 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 						send "&aThis arena not exists"																				
 				if arg 1 is "setlobby":	
 					if player has permission "bg.admin":
-						set {-bg::lobby} to location of player
+						set yaml value "Locations.Lobby" from from "leaf.bg.data" to location of 
+						save "leaf.bg.data"
 						send "&aLobby set."	
 				if arg 1 is "set-route-start":	
 					if arg-2 is set:
@@ -513,6 +514,7 @@ on right click on chest or trapped chest:
 					remove {_item} from {_loot::*}
 					add {_item} to slot {_slot} of event-block
 				add 1 to {-bg::stats::Chests::%uuid of player%}
+				bg_stats("add", player, "Chests")
 				set {-bg::arena::%{-bg::player::%player%::arena}%::CHESTS::%location of event-block%} to location of event-block
 					
 on hunger bar change:	
@@ -544,21 +546,19 @@ function bg_death_chest(p: player, arena: text):
 			drop loop-item at {_p}	
 
 function bg_player_death(p: player, killer: text = "null"):
-	set {_uuid} to uuid of {_p}
 	set {_arena} to {-bg::player::%{_p}%::arena}
 	set {_players-left} to size of {-bg::arena::%{_arena}%::ninjas::*}
 	bg_death_chest({_p}, {_arena})
 	bg_remove({_p}, {_arena})
 	create lightning effect at {_p}
 	add {_p} to {-bg::arena::%{_arena}%::bad-ninjas::*}
-	add 1 to {-bg::stats::Deaths::%{_uuid}%}
+	bg_stats("add", {_p}, "Deaths")
 	set {_p}'s gamemode to spectator
 	send title "&e&l##%size of {-bg::arena::%{_arena}%::ninjas::*}+1% &c&lGAME OVER" with subtitle "&eBATTLE ROYALE" to {_p} with 10 fadein and 10 fadeout for 70
 	if {_killer} != "null":
 		set {_killer} to {_killer} parsed as player
 		if {_killer} is not {_p}:
-			set {_uuid} to uuid of {_killer}
-			add 1 to {-bg::stats::Kills::%{_uuid}%}
+			bg_stats("add", {_killer}, "Kills")
 			add 1 to {-bg::player::%{_killer}%::kills}
 			if {_killer}'s tool is set:
 				set {_display} to name of {_killer}'s tool
@@ -605,8 +605,7 @@ function bg_remove(p: player, arena: text):
 			replace all "{player}" with "%{_p}%" in {_msg}
 			replace all "{kills}" with "%{-bg::player::%{_p}%::kills}%" in {_msg}
 			send message centered colored {_msg} to {-bg::arena::%{_arena}%::ninjas::*} and {-bg::arena::%{_arena}%::bad-ninjas::*}
-		set {_uuid} to uuid of {_p}
-		add 1 to {-bg::stats::Wins::%{_uuid}%}
+		bg_stats("add", {_p}, "Wins")
 		loop 10 times:
 			minecraft version contains "1.8" or "1.9" or "1.10" or "1.11" or "1.12"
 			if {-bg::player::%{_p}%::state} is "IN-GAME":
@@ -650,12 +649,14 @@ on unload:
 	send " " to console
 	send "&7&l--------------------------------------------" to console
 
-function bg_stats(do: text, p: player):
+function bg_stats(do: text, p: player, type: text = "", int: number = 1):
 	set {_uuid} to uuid of {_p}
 	{_do} is "check":
 		loop "Kills", "Wins", "Deaths", "PlayedGames" and "Chests":
 			yaml value "%uuid of {_p}%.%loop-value-1%" from "leaf.bg.playerdata" is not set
 			set yaml value "%uuid of {_p}%.%loop-value-1%" from "leaf.bg.playerdata" to 0
+	{_do} is "add":
+		set yaml value "%uuid of {_p}%.%{_type}%" from "leaf.bg.playerdata" to yaml value "%uuid of {_p}%.%{_type}%" from "leaf.bg.playerdata" + {_int}		
 	save yaml "leaf.bg.playerdata"
 	
 function bg_leave(p: player):
@@ -666,7 +667,7 @@ function bg_leave(p: player):
 		delete {-bg::player::%{_p}%::*}	
 		bg_clear_player({_p})
 		delete scoreboard of {_p}
-		teleport {_p} to {-bg::lobby}	
+		teleport {_p} to yaml value "Locations.Lobby" from from "leaf.bg.data"
 		
 function bg_join(p: player, arena: text):	
 	if {-bg::player::%{_p}%::state} is not set:
@@ -733,14 +734,10 @@ on entity target:
 		cancel event
 
 on damage of entity:
-	metadata value "BG-PLANE" of victim is set:
-		cancel event
-	metadata value "BG-OWNER" of victim is set:
-		cancel event
-	metadata value "BG-FLYING" of victim is set:
-		cancel event
-	metadata value "BG-PARACHUTE" of victim is set:
-		cancel event
+	loop "PLANE", "OWNER", "FLYING", "PARACHUTE":
+		metadata value "BG-%loop-value-1%" of victim is set:
+			cancel event
+			stop
 
 function bg_delete_arena_entities(arena: text):
 	set {_w} to world of yaml value "%{_arena}%.Lobby" from "leaf.bg.arenas"
@@ -889,7 +886,7 @@ function bg_start(arena: text):
 		apply invisibility without any particles to loop-value for 7 days
 		loop-value-1.setAllowFlight(true)
 		loop-value-1.setFlying(true)
-		add 1 to {-bg::stats::PlayedGames::%uuid of loop-value%}
+		bg_stats("add", loop-value-1, "PlayedGames")
 		bg_player_track_plane(loop-value, {_arena}, {_start}, {_plane})				
 
 function bg_clear_parachute(p: player):
@@ -1010,9 +1007,9 @@ function bg_resetarena(arena: text):
 		delete {-bg::player::%loop-value-1%::*}		
 		bg_clear_player(loop-value-1)
 		delete scoreboard of loop-value-1
-		teleport loop-value-1 to {-bg::lobby}
+		teleport loop-value-1 to yaml value "Locations.Lobby" from from "leaf.bg.data"
 	loop {-bg::arena::%{_arena}%::CHESTS::*}:
-		clear inventory of block at loop-value
+		clear inventory of block at loop-value-1
 	loop {-bg::arena::%{_arena}%::KILL-ME-PLS::*}:
 		set block at loop-value to air
 		remove loop-value from {-bg::arena::%{_arena}%::KILL-ME-PLS::*}
