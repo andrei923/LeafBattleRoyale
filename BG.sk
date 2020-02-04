@@ -649,14 +649,13 @@ on unload:
 	send "&7&l--------------------------------------------" to console
 
 function bg_stats(do: text, p: player, type: text = "", int: number = 1):
-	set {_uuid} to uuid of {_p}
 	{_do} is "check":
 		loop "Kills", "Wins", "Deaths", "PlayedGames" and "Chests":
 			yaml value "%uuid of {_p}%.%loop-value-1%" from "leaf.bg.playerdata" is not set
 			set yaml value "%uuid of {_p}%.%loop-value-1%" from "leaf.bg.playerdata" to 0
 	{_do} is "add":
 		set yaml value "%uuid of {_p}%.%{_type}%" from "leaf.bg.playerdata" to yaml value "%uuid of {_p}%.%{_type}%" from "leaf.bg.playerdata" + {_int}		
-	save yaml "leaf.bg.playerdata"
+	save yaml "leaf.bg.playerdata" with no extra lines between nodes
 	
 function bg_leave(p: player):
 	if {-bg::player::%{_p}%::state} is set:
