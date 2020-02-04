@@ -617,9 +617,8 @@ on load:
 	delete {-bg::*}
 	loop "Place" and "Break":
 		loop yaml list "Settings.Blocks.Allowed-To-%loop-value-1%" from "leaf.bg.config":
-			set {_block} to loop-value-2
-			if {_block} parsed as material is set:
-				add {_block} to {-bg::arena::blocks-to-%loop-value-1%::*}
+			if "%loop-value-2%" parsed as material is set:
+				add "%loop-value-2%" parsed as material to {-bg::arena::blocks-to-%loop-value-1%::*}
 			else:
 				broadcast "BG: item %loop-value-2% from Blocks To %loop-value-1% is invalid."
 		wait a tick
