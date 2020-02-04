@@ -31,31 +31,31 @@ options:
 local effect [leaf] send title %string% with subtitle %string% to %players% with %number% fadein and %number% fadeout for %number%:		
 	trigger:
 		loop exprs-3:
-			{bg::cache::TitleManager}.sendTitle(loop-value-1, expr-1, expr-4, expr-5 and expr-6)
-			{bg::cache::TitleManager}.sendSubtitle(loop-value-1 and expr-2)
+			{-bg::TitleManager}.sendTitle(loop-value-1, expr-1, expr-4, expr-5 and expr-6)
+			{-bg::TitleManager}.sendSubtitle(loop-value-1 and expr-2)
 
 local effect [leaf] send action[ ]bar %string% to %players%:		
 	trigger:
 		loop exprs-2:
-			{bg::cache::TitleManager}.sendActionbar(loop-value-1 and expr-1)
+			{-bg::TitleManager}.sendActionbar(loop-value-1 and expr-1)
 			
 local effect create scoreboard for %player%:	
 	trigger:
-		if {bg::cache::TitleManager}.hasScoreboard(expr-1) is true:
-			{bg::cache::TitleManager}.removeScoreboard(expr-1)
-		{bg::cache::TitleManager}.giveScoreboard(expr-1)
+		if {-bg::TitleManager}.hasScoreboard(expr-1) is true:
+			{-bg::TitleManager}.removeScoreboard(expr-1)
+		{-bg::TitleManager}.giveScoreboard(expr-1)
 
 local effect delete scoreboard of %player%:	
 	trigger:
-		{bg::cache::TitleManager}.removeScoreboard(expr-1)	
+		{-bg::TitleManager}.removeScoreboard(expr-1)	
 
 local effect set scoreboard title of %player% to %string%:	
 	trigger:
-		{bg::cache::TitleManager}.setScoreboardTitle(expr-1 and expr-2)
+		{-bg::TitleManager}.setScoreboardTitle(expr-1 and expr-2)
 
 local effect set scoreboard line %number% of %player% to %string%:	
 	trigger:
-		{bg::cache::TitleManager}.setScoreboardValue(expr-2, expr-1 and expr-3)
+		{-bg::TitleManager}.setScoreboardValue(expr-2, expr-1 and expr-3)
 
 expression %item% with [leaf] lore %texts%:
 	return type: item
@@ -101,9 +101,10 @@ local expression replacer %texts% with %texts% in %text%:
 
 on load:
 	loop currently loaded yaml files:
-		loop-value contains "leaf.bg.config"
+		loop-value contains "leaf.bg.config" or "leaf.bg.data" or "leaf.bg.arenas" or "leaf.bg.playerdata"
 		unload yaml loop-value-1
-	load yaml "plugins/Battlegrounds/config.yml" as "leaf.bg.config"	
+	loop "config", "arenas" and "data" or "playerdata":
+		load yaml "plugins/Battlegrounds/%loop-value-1%.yml" as "leaf.bg.config"		
 	check_yaml("config", "Settings.Chat-Format", "&3{player} &8» &7{message}")			
 	check_yaml("config", "Settings.Chest.Enabled", "true", "boolean")
 	check_yaml("config", "Settings.Chest.Min", "3", "number")		
@@ -135,45 +136,62 @@ on load:
 	check_yaml("config", "Messages.Starting", "&eThe battle starts in &a{seconds} &eseconds")	
 	check_yaml("config", "Messages.Stats", "&e&l✦&7&l&m--------------------------------------&e&l✦||||&8&l»          &6&lBATTLEGROUNDS STATS        &8&l«||||&6&l» &7&lWins &c{Wins}||&6&l» &7&lKills &c{Kills}||&6&l» &7&lPlayedGames &c{PlayedGames}||&6&l» &7&lChests &c{Chest}||&6&l» &7&lDeaths &c{deaths}||||&e&l✦&7&l&m--------------------------------------&e&l✦", "list")		
 	check_yaml("config", "Messages.Summary", "||||||&e✦ &7Battle Royale &e✦||||&aWinner &7- &e{player}||&aKills &7- &e{kills}||||||", "list")			
-	save yaml "leaf.bg.config"
+	#Fixing old arenas
+	loop {-bg::arenas::*}:
+		set yaml value "%loop-value-1%.State" from "leaf.bg.arenas" to {bg::arena::%loop-value-1%::state}
+		set yaml value "%loop-value-1%.Lobby" from "leaf.bg.arenas" to {bg::arena::%loop-value-1%::lobby}
+		set yaml value "%loop-value-1%.Center" from "leaf.bg.arenas" to {bg::arena::%loop-value-1%::center}		
+		set yaml value "%loop-value-1%.MaxPlayers" from "leaf.bg.arenas" to {bg::arena::%loop-value-1%::maxplayers}			
+		set yaml value "%loop-value-1%.MinPlayers" from "leaf.bg.arenas" to {bg::arena::%loop-value-1%::minplayers}	
+		loop {bg::arena::%loop-value-1%::borders::*}:
+			add loop-value-2 to yaml list "%loop-value-1%.Borders" from "leaf.bg.arenas"
+		set {_id} to 1
+		loop {bg::arena::%loop-value-1%::route::id}:
+			set yaml value "%loop-value-1%.Start.%{_id}%" from "leaf.bg.arenas" to {bg::arena::%loop-value-1%::start::%{_id}%}
+			set yaml value "%loop-value-1%.End.%{_id}%" from "leaf.bg.arenas" to {bg::arena::%loop-value-1%::end::%{_id}%}
+			add 1 to {_id}
+	loop "config", "arenas" and "data" or "playerdata":	
+		save yaml loop-value-1
 	minecraft version contains "1.8":
-		set {bg::banner} to "banner" parsed as material
+		set {-bg::banner} to "banner" parsed as material
 	else:
-		set {bg::banner} to "black banner" parsed as material
+		set {-bg::banner} to "black banner" parsed as material
 
 #Easy setup pls.
 function bg_send_arena_status(p: player):
-	if {bg::cache::player::setup} is set:
-		set {_arena} to {bg::cache::player::setup}
+	if {-bg::player::setup} is set:
+		set {_arena} to {-bg::player::setup}
 		send "&e&l✦&7&l&m-------------&r &a%{_arena}% &7&l&m------------------&e&l✦" to {_p}
-		if {bg::arena::%{_arena}%::lobby} is not set:
+		if yaml value "%{_arena}%.Lobby" from "leaf.bg.arenas" is not set:
 			send "&c&l✘ &fLobby is not set, use /bg setarenalobby &e%{_arena}%" to {_p}
-		if {bg::arena::%{_arena}%::lobby} is set:		
+		if yaml value "%{_arena}%.Lobby" from "leaf.bg.arenas"} is set:		
 			send "&a&l✔ &fLobby set." to {_p}
-		if {bg::arena::%{_arena}%::center} is not set:
+		if yaml value "%{_arena}%.Center" from "leaf.bg.arenas" is not set:
 			send "&c&l✘ &fArena center is not set, use /bg setcenter &e%{_arena}%" to {_p}
-		if {bg::arena::%{_arena}%::center} is set:		
+		if yaml value "%{_arena}%.Center" from "leaf.bg.arenas"} is set:		
 			send "&a&l✔ &fArena center set." to {_p}
-		if {bg::arena::%{_arena}%::border::first} is not set:
+		if yaml value "%{_arena}%.Border-First" from "leaf.bg.arenas" is not set:
 			send "&c&l✘ &fArena First border size is not set, use /bg setbodersize &e%{_arena}% &c{size}" to {_p}
-		if {bg::arena::%{_arena}%::border::first} is set:		
+		if yaml value "%{_arena}%.Border-First" from "leaf.bg.arenas" is set:		
 			send "&a&l✔ &fArena First border size is set." to {_p}		
-		if size of {bg::arena::%{_arena}%::borders::*} = 0:
+		if size of yaml list "%{_arena}%.Borders" from "leaf.bg.arenas" = 0:
 			send "&c&l✘ &fArena has no border locations add some using /bg add-border &e%{_arena}%" to {_p}
 		else:	
-			send "&a&l✔ &fArena has border location(s). &a(%size of {bg::arena::%{_arena}%::borders::*}%)" to {_p}
-		if {bg::arena::%{_arena}%::start::1} and {bg::arena::%{_arena}%::end::1} is not set:
+			set {_size} to size of yaml list "%{_arena}%.Borders" from "leaf.bg.arenas"
+			send "&a&l✔ &fArena has border location(s). &a(%{_size}%)" to {_p}
+		if yaml value "%{_arena}%.Start.1" from "leaf.bg.arenas" and yaml value "%{_arena}%.End.1" from "leaf.bg.arenas" is not set:
 			send "&c&l✘ &fArena has no plane route use /bg set-route-start &e%{_arena}%" to {_p}
 			send "&f/bg set-route-end &e%{_arena}% &fand /bg save-route &e%{_arena}%" to {_p}
-		if {bg::arena::%{_arena}%::start::1} and {bg::arena::%{_arena}%::end::1} is set:
-			send "&a&l✔ &fArena route(s) set. &a(%size of {bg::arena::%{_arena}%::start::*}%&a)" to {_p}
-		if {bg::arena::%{_arena}%::minplayers} is set:		
+		if yaml value "%{_arena}%.Start.1" from "leaf.bg.arenas" and yaml value "%{_arena}%.End.1" from "leaf.bg.arenas" is set:
+			set {_size} to size of yaml nodes with keys "%{_arena}%.Start.1" from "leaf.bg.arenas"
+			send "&a&l✔ &fArena route(s) set. &a(%{_size}%&a)" to {_p}
+		if yaml value "%{_arena}%.MinPlayers" from "leaf.bg.arenas" is set:		
 			send "&a&l✔ &fArena min players set." to {_p}
-		if {bg::arena::%{_arena}%::minplayers} is not set:		
+		if yaml value "%{_arena}%.MinPlayers" from "leaf.bg.arenas" is not set:		
 			send "&c&l✘ &fArena min players is not set, use /bg setminplayers &e%{_arena}% (number)" to {_p}	
-		if {bg::arena::%{_arena}%::maxplayers} is set:		
+		if yaml value "%{_arena}%.MaxPlayers" from "leaf.bg.arenas" is set:		
 			send "&a&l✔ &fArena max players set." to {_p}
-		if {bg::arena::%{_arena}%::maxplayers} is not set:		
+		if yaml value "%{_arena}%.MaxPlayers" from "leaf.bg.arenas" is not set:		
 			send "&c&l✘ &fArena max players is not set, use /bg setmaxplayers &e%{_arena}% (number)" to {_p}							
 		send "&fTo save arena use &a/bg savearena &e%{_arena}%" to {_p}
 		send "&e&l✦&7&l&m------------------------------------&e&l✦" to {_p}		
@@ -190,11 +208,11 @@ function bg_set_banner(p: player, side: text):
 		else:
 			set {_banner} to "%loop-value% banner" parsed as material
 		make a gui slot {_slot} of {_p} with {_banner} named "&8&l» <%loop-value%>%loop-value% Banner" to run:
-			set {bg::stats::BANNER::%{_side}%::%{_uuid}%} to {_banner}
+			set {-bg::stats::BANNER::%{_side}%::%{_uuid}%} to {_banner}
 			send "&aBanner set for &e%{_side}% &aside"
 			close {_p}'s inventory
-		make a gui slot 17 of {_p} with {bg::banner} named "&8&l» &eRandom" to run:			
-			delete {bg::stats::BANNER::%{_side}%::%{_uuid}%}
+		make a gui slot 17 of {_p} with {-bg::banner} named "&8&l» &eRandom" to run:			
+			delete {-bg::stats::BANNER::%{_side}%::%{_uuid}%}
 			send "&aBanner set for &e%{_side}% &aside"
 			close {_p}'s inventory	
 		add 1 to {_slot}	
@@ -235,283 +253,271 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 				send "&7/bg chest rename &8(&7hold the item)"															
 				send "&7&l-----------------------------------"
 				stop
-		if arg 1 is "join":		
-			bg_join(player, arg-2)
-		if arg 1 is "list":		
-			if {bg::cache::player::%player%::state} is not set:	
-				open chest inventory with 6 rows named yaml value "Menus.Arena-Browser.Menu" from "leaf.bg.config" to player
-				wait a tick	
-				set {_slot} to 10						
-				loop {bg::arenas::*}:
-					set {_item} to green clay named replacer "{arena}" with loop-value-1 in yaml value "Menus.Arena-Browser.Name" from "leaf.bg.config"
-					set {_lore::*} to yaml list "Menus.Arena-Browser.Lore" from "leaf.bg.config"
-					replace all "{status}" with "%{bg::arena::%loop-value%::cache::status}%" in {_lore::*}
-					replace all "{playing}" with "%size of {bg::arena::%loop-value%::cache::ninjas::*}%" in {_lore::*}																	
-					make a gui slot {_slot} of player with {_item} with leaf lore {_lore::*} to run function bg_join(player, loop-value-1)
-					add 1 to {_slot}
-					if {_slot} is 17 or 26 or 35:
-						add 2 to {_slot}
-		if arg 1 is "chest":
-			if player has permission "bg.admin":	
-				if arg-2 is "add":
-					if player's tool is not air:
-						add player's tool to yaml list "Settings.Chest.Custom-Loot" from "leaf.bg.config"
-						send "&aItem added."
-						save yaml "leaf.bg.config" 	
-				if arg-2 is "remove":
-					if player's tool is not air:
-						remove player's tool from yaml list "Settings.Chest.Custom-Loot" from "leaf.bg.config"
-						send "&aItem removed."
-						save yaml "leaf.bg.config" 	
-				if arg-2 is "rename":
-					if player's tool is not air:
-						set name of player's tool to colored arg-3									
-		if arg 1 is "parachute":
-			open virtual hopper inventory with 1 rows named "&8&l» &7Select Side" to player	
-			wait a tick
-			if {bg::stats::BANNER::left::%uuid of player%} is set:
-				make a gui slot 0 of player with {bg::stats::BANNER::left::%uuid of player%} named "&8&l» &7Left Side" to run function bg_set_banner(player, "left")
-			if {bg::stats::BANNER::left::%uuid of player%} is not set:
-				make a gui slot 0 of player with {bg::banner} named "&8&l» &7Left Side" to run function bg_set_banner(player, "left")
-			make a gui slot 2 of player with fence gate named "&7¯\_(ツ)_/¯" to do nothing
-			if {bg::stats::BANNER::right::%uuid of player%} is set:
-				make a gui slot 4 of player with {bg::stats::BANNER::right::%uuid of player%} named "&8&l» &7Left Side" to run function bg_set_banner(player, "right")
-			if {bg::stats::BANNER::right::%uuid of player%} is not set:
-				make a gui slot 4 of player with {bg::banner} named "&8&l» &7Right Side" to run function bg_set_banner(player, "right")				
-		if arg 1 is "leave":	
-			bg_leave(player)
-		if arg 1 is "autojoin":		
-			if {bg::cache::player::%player%::state} is not set:
-				loop {bg::arenas::*}:
-					if {bg::arena::%loop-value%::cache::status} is "WAITING" or "STARTING":
-						bg_join(player, loop-value)
-						stop
-		if arg-1 is "stats":
-			loop yaml list "Messages.Stats" from "leaf.bg.config":
-				set {_msg} to loop-value-1
-				loop "Kills", "Wins", "Deaths", "PlayedGames" and "Chests":
-					replace all "{%loop-value-2%}" with "%{bg::stats::%loop-value-2%::%uuid of player%}%" in {_msg}
-				send colored {_msg} to player
-		if arg 1 is "createarena":	
-			if player has permission "bg.admin":		
-				if arg-2 is set:
-					if {bg::arena::%arg-2%::state} is not set:
-						set {bg::arena::%arg-2%::state} to "setup"
-						set {bg::cache::player::setup} to arg-2
-						bg_send_arena_status(player)
-						send "&aArena &c%arg-2% &ahas been created!"
-					else:
-						send "&aThis arena already exists!"	
-				else:
-					send "&aSpecify Arena!"				
-		if arg 1 is "setarenalobby":
-			if player has permission "bg.admin":		
-				if {bg::arena::%arg-2%::state} is "setup" or "ready":
-					set {bg::arena::%arg-2%::lobby} to location of player
-					bg_send_arena_status(player)
-					send "&aLobby for Arena &3%arg-2% &ahas been set!"						
-				else:
-					send "&aThis arena not exists"		
-		if arg 1 is "setmaxplayers" or "setminplayers":
-			if player has permission "bg.admin":		
-				if {bg::arena::%arg-2%::state} is "setup" or "ready":
-					set {_type} to arg-1
-					replace all "set" with "" in {_type}
-					set {bg::arena::%arg-2%::%{_type}%} to arg-3 parsed as number
-					bg_send_arena_status(player)
-					replace all "maxplayers" with "Max Players" in {_type}
-					replace all "minplayers" with "Min Players" in {_type}
-					send "&a%{_type}% for Arena &3%arg-2% &ahas been set!"						
-				else:
-					send "&aThis arena not exists"																
-		if arg 1 is "setlobby":	
+		if arg-1 is "join" or "list" or "chest" or "parachute" or "leave" or "autojoin":
+			if player has permission "bg.player":
+				if arg 1 is "join":		
+					bg_join(player, arg-2)
+				if arg 1 is "list":		
+					if {-bg::player::%player%::state} is not set:	
+						open chest inventory with 6 rows named yaml value "Menus.Arena-Browser.Menu" from "leaf.bg.config" to player
+						wait a tick	
+						set {_slot} to 10						
+						loop {-bg::arenas::*}:
+							set {_item} to green clay named replacer "{arena}" with loop-value-1 in yaml value "Menus.Arena-Browser.Name" from "leaf.bg.config"
+							set {_lore::*} to yaml list "Menus.Arena-Browser.Lore" from "leaf.bg.config"
+							replace all "{status}" with "%{-bg::arena::%loop-value%::status}%" in {_lore::*}
+							replace all "{playing}" with "%size of {-bg::arena::%loop-value%::ninjas::*}%" in {_lore::*}																	
+							make a gui slot {_slot} of player with {_item} with leaf lore {_lore::*} to run function bg_join(player, loop-value-1)
+							add 1 to {_slot}
+							if {_slot} is 17 or 26 or 35:
+								add 2 to {_slot}
+				if arg 1 is "chest":
+					if player has permission "bg.admin":	
+						if arg-2 is "add":
+							if player's tool is not air:
+								add player's tool to yaml list "Settings.Chest.Custom-Loot" from "leaf.bg.config"
+								send "&aItem added."
+								save yaml "leaf.bg.config" 	
+						if arg-2 is "remove":
+							if player's tool is not air:
+								remove player's tool from yaml list "Settings.Chest.Custom-Loot" from "leaf.bg.config"
+								send "&aItem removed."
+								save yaml "leaf.bg.config" 	
+						if arg-2 is "rename":
+							if player's tool is not air:
+								set name of player's tool to colored arg-3									
+				if arg 1 is "parachute":
+					open virtual hopper inventory with 1 rows named "&8&l» &7Select Side" to player	
+					wait a tick
+					if {-bg::stats::BANNER::left::%uuid of player%} is set:
+						make a gui slot 0 of player with {-bg::stats::BANNER::left::%uuid of player%} named "&8&l» &7Left Side" to run function bg_set_banner(player, "left")
+					if {-bg::stats::BANNER::left::%uuid of player%} is not set:
+						make a gui slot 0 of player with {-bg::banner} named "&8&l» &7Left Side" to run function bg_set_banner(player, "left")
+					make a gui slot 2 of player with fence gate named "&7¯\_(ツ)_/¯" to do nothing
+					if {-bg::stats::BANNER::right::%uuid of player%} is set:
+						make a gui slot 4 of player with {-bg::stats::BANNER::right::%uuid of player%} named "&8&l» &7Left Side" to run function bg_set_banner(player, "right")
+					if {-bg::stats::BANNER::right::%uuid of player%} is not set:
+						make a gui slot 4 of player with {-bg::banner} named "&8&l» &7Right Side" to run function bg_set_banner(player, "right")				
+				if arg 1 is "leave":	
+					bg_leave(player)
+				if arg 1 is "autojoin":		
+					if {-bg::player::%player%::state} is not set:
+						loop {-bg::arenas::*}:
+							if {-bg::arena::%loop-value%::status} is "WAITING" or "STARTING":
+								bg_join(player, loop-value)
+								stop
+				if arg-1 is "stats":
+					loop yaml list "Messages.Stats" from "leaf.bg.config":
+						set {_msg} to loop-value-1
+						loop "Kills", "Wins", "Deaths", "PlayedGames" and "Chests":
+							set {_int} to yaml value "%uuid of player%.%loop-value-1%" from "leaf.bg.playerdata"
+							replace all "{%loop-value-2%}" with "%{_int}%" in {_msg}
+						send colored {_msg} to player
+		if arg 1 is "createarena" or "setarenalobby" or "setmaxplayers" or "setminplayers" or "setlobby" or "set-route-start" or "set-route-end" or "save-route" or "remove-route" or "add-border" or "remove-border" or "setcenter" or "start" or "savearena" or "reload":
 			if player has permission "bg.admin":
-				set {bg::lobby} to location of player
-				send "&aLobby set."	
-		if arg 1 is "set-route-start":	
-			if player has permission "bg.admin":
-				if arg-2 is set:
-					if {bg::arena::%arg-2%::route::id} is not set:
-						set {bg::arena::%arg-2%::route::id} to 1
-					set {bg::arena::%arg-2%::start::%{bg::arena::%arg-2%::route::id}%} to location of player
-					send "&aStart with id &e&n%{bg::arena::%arg-2%::route::id}%&r &aset."
-		if arg 1 is "set-route-end":	
-			if player has permission "bg.admin":
-				if arg-2 is set:				
-					if {bg::arena::%arg-2%::route::id} is not set:
-						set {bg::arena::%arg-2%::route::id} to 1
-					set {bg::arena::%arg-2%::end::%{bg::arena::%arg-2%::route::id}%} to location of player
-					send "&aEnd with id &e&n%{bg::arena::%arg-2%::route::id}%&r &aset."	
-		if arg 1 is "save-route":	
-			if player has permission "bg.admin":
-				if arg-2 is set:				
-					if {bg::arena::%arg-2%::route::id} is set:
-						if {bg::arena::%arg-2%::start::%{bg::arena::%arg-2%::route::id}%} and {bg::arena::%arg-2%::end::%{bg::arena::%arg-2%::route::id}%} is set:
+				if arg 1 is "createarena":		
+					if arg-2 is set:
+						if {-bg::arena::%arg-2%::state} is not set:
+							set yaml value "%arg-2%.State" from "leaf.bg.arenas" to "setup"
+							set {-bg::player::setup} to arg-2
 							bg_send_arena_status(player)
-							send "&aRoute with id &e&n%{bg::arena::%arg-2%::route::id}%&r&a saved."	
-							add 1 to {bg::arena::%arg-2%::route::id}	
-		if arg 1 is "remove-route":	
-			if player has permission "bg.admin":
-				if arg-2 is set:				
-					if {bg::arena::%arg-2%::route::id} is set:
-						if {bg::arena::%arg-2%::route::id} = 0:
-							stop
-						delete {bg::arena::%arg-2%::start::%{bg::arena::%arg-2%::route::id}%} and {bg::arena::%arg-2%::end::%{bg::arena::%arg-2%::route::id}%}
-						bg_send_arena_status(player)
-						send "&aDeleted route with id &e&n%{bg::arena::%arg-2%::route::id}%&r&a."
-						remove 1 from {bg::arena::%arg-2%::route::id}	
-		if arg 1 is "add-border":	
-			if player has permission "bg.admin":
-				if arg-2 is set:				
-					if {bg::arena::%arg-2%::border-id} is not set:
-						set {bg::arena::%arg-2%::border-id} to 1
-					set {bg::arena::%arg-2%::borders::%{bg::arena::%arg-2%::border-id}%} to location of player
-					bg_send_arena_status(player)
-					send "&aAdded border with id &e&n%{bg::arena::%arg-2%::border-id}%&r&a to arena &e&n%arg-2%&r&a."	
-					add 1 to {bg::arena::%arg-2%::border-id}	
-		if arg 1 is "remove-border":	
-			if player has permission "bg.admin":
-				if arg-2 is set:				
-					if {bg::arena::%arg-2%::border-id} is set:
-						delete {bg::arena::%arg-2%::borders::%{bg::arena::%arg-2%::border-id}%} and {bg::arena::%arg-2%::borders::%{bg::arena::%arg-2%::border-id}%}
-						bg_send_arena_status(player)
-						remove 1 from {bg::arena::%arg-2%::border-id::id}	
-						send "&aRemoved border with id &e&n%{bg::arena::%arg-2%::border-id}%&r&a from arena &e&n%arg-2%&r&a."	
-					else:
-						send "&cNo borders locations found."					
-		if arg 1 is "setcenter":	
-			if player has permission "bg.admin":
-				set {bg::arena::%arg-2%::center} to location of player
-				bg_send_arena_status(player)
-				send "&aCenter for Arena &b%arg-2% &ahas been set!"		
-		if arg 1 is "setbordersize":	
-			if player has permission "bg.admin":
-				arg-2 is set
-				arg-3 is set
-				set {bg::arena::%arg-2%::border::first} to arg-3 parsed as number
-				bg_send_arena_status(player)
-				send "&aFirst Border for Arena &b%arg-2% &ahas been set to &b%arg-3%!"													
-		if arg 1 is "resetstats":	
-			if player has permission "bg.admin":		
-				set {_p} to arg-2 parsed as player
-				bg_stats("reset", {_p})
-				send "&cReseted Stats for &a%{_p}%"						
-		if arg 1 is "start":
-			if player has permission "bg.admin":
-				if {bg::arena::%{bg::cache::player::%player%::arena}%::cache::status} is "WAITING" or "STARTING":
-					bg_start({bg::cache::player::%player%::arena})
-		if arg 1 is "reload":		
-			if player has permission "bg.admin":
-				broadcast "&aReloading..."
-				wait a tick
-				make console execute command "sk reload %script%"
-		if arg 1 is "savearena":	
-			if player has permission "bg.admin":		
-				if {bg::arena::%arg-2%::state} is "setup":
-					if {bg::arena::%arg-2%::lobby} is set:		
-						if {bg::arena::%arg-2%::start::1} is set:
-							if {bg::arena::%arg-2%::end::1} is set:							
-								if {bg::arena::%arg-2%::center} is set:	
-									if {bg::arena::%arg-2%::maxplayers} is set:	
-										if {bg::arena::%arg-2%::minplayers} is set:	
-											if size of {bg::arena::%arg-2%::borders::*} > 0:
-												set {bg::arena::%arg-2%::state} to "ready"
-												add arg-2 to {bg::arenas::*}
-												send "&aArena &c%arg-2% &ahas been saved."
-												bg_resetarena(arg-2)	
-											else:
-												send "&aNo borders added."
-										else:
-											send "&aMin players not set!"												
-									else:
-										send "&aMax players not set!"									
-								else:
-									send "&aCenter is not set!"										
-							else:
-								send "&aEnd point is not set"											
+							send "&aArena &c%arg-2% &ahas been created!"
 						else:
-							send "&aStart point is not set"																			
+							send "&aThis arena already exists!"	
 					else:
-						send "&aLobby is not set!"						
-				else:
-					send "&aThis arena not exists"
-		if arg 1 is "debug":	
-			if player has permission "bg.admin":
-				send "&fArena: &a%{bg::cache::player::%player%::arena}%"	
-				send "&fStatus: &a%{bg::arena::%{bg::cache::player::%player%::arena}%::cache::status}%"	
-				send "&fPlayers: &a%size of {bg::arena::%{bg::cache::player::%player%::arena}%::cache::ninjas::*}%"		
-		if arg 1 is "deletearena":	
-			if player has permission "bg.admin":		
-				if {bg::arena::%arg-2%::state} is set:
-					bg_resetarena(arg-2)
-					delete {bg::arena::%arg-2%::*}							
-					remove arg-2 from {bg::arenas::*}
-					send "&aArena &c%arg-2% &ahas been deleted."
-				else:
-					send "&aThis arena not exists"
+						send "&aSpecify Arena!"				
+				if arg 1 is "setarenalobby":
+					if {-bg::arena::%arg-2%::state} is "setup" or "ready":
+						set yaml value "%arg-2%.Lobby" from "leaf.bg.arenas" to location of player
+						bg_send_arena_status(player)
+						send "&aLobby for Arena &3%arg-2% &ahas been set!"						
+					else:
+						send "&aThis arena not exists"		
+				if arg 1 is "setmaxplayers":	
+					if yaml value "%arg-2%.State" from "leaf.bg.arenas" is "setup" or "ready":
+						set yaml value "%arg-2%.MaxPlayers" from "leaf.bg.arenas" to arg-3 parsed as number
+						bg_send_arena_status(player)
+						send "&aMax Players for Arena &3%arg-2% &ahas been set!"						
+					else:
+						send "&aThis arena not exists"	
+				if arg 1 is "setminplayers":	
+					if yaml value "%arg-2%.State" from "leaf.bg.arenas" is "setup" or "ready":
+						set yaml value "%arg-2%.MinPlayers" from "leaf.bg.arenas" to arg-3 parsed as number
+						bg_send_arena_status(player)
+						send "&aMin Players for Arena &3%arg-2% &ahas been set!"						
+					else:
+						send "&aThis arena not exists"																				
+				if arg 1 is "setlobby":	
+					if player has permission "bg.admin":
+						set {-bg::lobby} to location of player
+						send "&aLobby set."	
+				if arg 1 is "set-route-start":	
+					if arg-2 is set:
+						if {-bg::arena::%arg-2%::route::id} is not set:
+							set {-bg::arena::%arg-2%::route::id} to 1
+						set {-bg::arena::%arg-2%::start::%{-bg::arena::%arg-2%::route::id}%} to location of player
+						send "&aStart with id &e&n%{-bg::arena::%arg-2%::route::id}%&r &aset."
+				if arg 1 is "set-route-end":	
+					if arg-2 is set:				
+						if {-bg::arena::%arg-2%::route::id} is not set:
+							set {-bg::arena::%arg-2%::route::id} to 1
+						set {-bg::arena::%arg-2%::end::%{-bg::arena::%arg-2%::route::id}%} to location of player
+						send "&aEnd with id &e&n%{-bg::arena::%arg-2%::route::id}%&r &aset."	
+				if arg 1 is "save-route":	
+					if arg-2 is set:				
+						if {-bg::arena::%arg-2%::route::id} is set:
+							if {-bg::arena::%arg-2%::start::%{-bg::arena::%arg-2%::route::id}%} and {-bg::arena::%arg-2%::end::%{-bg::arena::%arg-2%::route::id}%} is set:
+								bg_send_arena_status(player)
+								send "&aRoute with id &e&n%{-bg::arena::%arg-2%::route::id}%&r&a saved."	
+								add 1 to {-bg::arena::%arg-2%::route::id}	
+				if arg 1 is "remove-route":	
+					if arg-2 is set:				
+						if {-bg::arena::%arg-2%::route::id} is set:
+							if {-bg::arena::%arg-2%::route::id} = 0:
+								stop
+							delete {-bg::arena::%arg-2%::start::%{-bg::arena::%arg-2%::route::id}%} and {-bg::arena::%arg-2%::end::%{-bg::arena::%arg-2%::route::id}%}
+							bg_send_arena_status(player)
+							send "&aDeleted route with id &e&n%{-bg::arena::%arg-2%::route::id}%&r&a."
+							remove 1 from {-bg::arena::%arg-2%::route::id}	
+				if arg 1 is "add-border":	
+					if arg-2 is set:				
+						if {-bg::arena::%arg-2%::border-id} is not set:
+							set {-bg::arena::%arg-2%::border-id} to 1
+						set {-bg::arena::%arg-2%::borders::%{-bg::arena::%arg-2%::border-id}%} to location of player
+						bg_send_arena_status(player)
+						send "&aAdded border with id &e&n%{-bg::arena::%arg-2%::border-id}%&r&a to arena &e&n%arg-2%&r&a."	
+						add 1 to {-bg::arena::%arg-2%::border-id}	
+				if arg 1 is "remove-border":	
+					if arg-2 is set:				
+						if {-bg::arena::%arg-2%::border-id} is set:
+							delete {-bg::arena::%arg-2%::borders::%{-bg::arena::%arg-2%::border-id}%} and {-bg::arena::%arg-2%::borders::%{-bg::arena::%arg-2%::border-id}%}
+							bg_send_arena_status(player)
+							remove 1 from {-bg::arena::%arg-2%::border-id::id}	
+							send "&aRemoved border with id &e&n%{-bg::arena::%arg-2%::border-id}%&r&a from arena &e&n%arg-2%&r&a."	
+						else:
+							send "&cNo borders locations found."					
+				if arg 1 is "setcenter":	
+					set yaml value "%arg-2%.Center" from "leaf.bg.arenas" to location of player
+					bg_send_arena_status(player)
+					send "&aCenter for Arena &b%arg-2% &ahas been set!"		
+				if arg 1 is "setbordersize":	
+					arg-2 is set
+					arg-3 is set
+					set yaml value "%arg-2%.Border-First" from "leaf.bg.arenas" to location of player
+					bg_send_arena_status(player)
+					send "&aFirst Border for Arena &b%arg-2% &ahas been set to &b%arg-3%!"															
+				if arg 1 is "start":
+					if {-bg::arena::%{-bg::player::%player%::arena}%::status} is "WAITING" or "STARTING":
+						bg_start({-bg::player::%player%::arena})
+				if arg 1 is "reload":		
+					broadcast "&aReloading..."
+					wait a tick
+					make console execute command "sk reload %script%"
+				if arg 1 is "savearena":	
+					if yaml value "%arg-2%.State" from "leaf.bg.arenas" is set:			
+						if yaml value "%arg-2%.Lobby" from "leaf.bg.arenas" is set:
+							if yaml value "%arg-2%.Start.1" from "leaf.bg.arenas" is set:
+								if yaml value "%arg-2%.End.1" from "leaf.bg.arenas" is set:						
+									if yaml value "%arg-2%.Center" from "leaf.bg.arenas" is set:
+										if yaml value "%arg-2%.MaxPlayers" from "leaf.bg.arenas" is set:
+											if yaml value "%arg-2%.MinPlayers" from "leaf.bg.arenas" is set:
+												if size of yaml list "%arg-2%.Borders" from "leaf.bg.arenas" > 0:
+													set yaml value "%arg-2%.State" from "leaf.bg.arenas" to "ready"
+													add arg-2 to {-bg::arenas::*}
+													send "&aArena &c%arg-2% &ahas been saved."
+													save yaml "leaf.bg.arenas"
+													bg_resetarena(arg-2)	
+												else:
+													send "&aNo borders added."
+											else:
+												send "&aMin players not set!"												
+										else:
+											send "&aMax players not set!"									
+									else:
+										send "&aCenter is not set!"										
+								else:
+									send "&aEnd point is not set"											
+							else:
+								send "&aStart point is not set"																			
+						else:
+							send "&aLobby is not set!"						
+					else:
+						send "&aThis arena not exists"	
+				if arg 1 is "deletearena":		
+					if {-bg::arena::%arg-2%::state} is set:
+						bg_resetarena(arg-2)
+						delete {-bg::arena::%arg-2%::*}							
+						remove arg-2 from {-bg::arenas::*}
+						delete yaml value "%arg-2%" from "leaf.bg.arenas"
+						send "&aArena &c%arg-2% &ahas been deleted."
+						save yaml "leaf.bg.arenas"
+					else:
+						send "&aThis arena not exists"
 	
 on PlayerArmorStandManipulateEvent:
-	if {bg::cache::player::%event.getPlayer()%::state} is set:	
+	if {-bg::player::%event.getPlayer()%::state} is set:	
 		cancel event
 
 on PlayerInteractEvent:
-	if {bg::cache::player::%event.getPlayer()%::state} is set:	
+	if {-bg::player::%event.getPlayer()%::state} is set:	
 		if "%event.getAction()%" is "PHYSICAL":
 			cancel event
 	
 on chat:
-	if {bg::cache::player::%player%::state} is set:
+	if {-bg::player::%player%::state} is set:
 		cancel event
-		send replacer "{player}" and "{message}" with "%player%" and message in yaml value "Settings.Chat-Format" from "leaf.bg.config" to {bg::arena::%{bg::cache::player::%player%::arena}%::cache::ninjas::*}
+		send replacer "{player}" and "{message}" with "%player%" and message in yaml value "Settings.Chat-Format" from "leaf.bg.config" to {-bg::arena::%{-bg::player::%player%::arena}%::ninjas::*}
 
 on drop:
-	if {bg::arena::%{bg::cache::player::%player%::arena}%::cache::status} is "STARTING" or "WAITING":
+	if {-bg::arena::%{-bg::player::%player%::arena}%::status} is "STARTING" or "WAITING":
 		cancel event
 
 on dismount:
-	if distance between {bg::arena::%{bg::cache::player::%player%::arena}%::start::%{bg::arena::%{bg::cache::player::%player%::arena}%::ROUTE}%} and player > yaml value "Settings.Misc.Allow-Jump-After" from "leaf.bg.config":
-		metadata value "BG-FLYING" of player is set
-		bg_parachute(player)	
-		stop
-	wait a tick
-	if player is riding:
-		stop
-	metadata value "BG-PARACHUTE" of player is set:
-		wait a tick
-		loop chickens in radius 5 of player:
-			metadata value "BG-OWNER" of loop-entity is "%player%"
-			make player ride loop-entity
+	if {-bg::player::%player%::state} is set:
+		if distance between yaml value "%{-bg::player::%player%::arena}%.Start.%{-bg::arena::%{-bg::player::%player%::arena}%::ROUTE}%" from "leaf.bg.arenas" and player > yaml value "Settings.Misc.Allow-Jump-After" from "leaf.bg.config":
+			metadata value "BG-FLYING" of player is set
+			bg_parachute(player)	
 			stop
-	loop chickens in radius 5 of player:
-		metadata value "BG-PLANE" of loop-entity is "%player%"
-		make player ride loop-entity
+		wait a tick
+		if player is riding:
+			stop
+		metadata value "BG-PARACHUTE" of player is set:
+			wait a tick
+			loop chickens in radius 5 of player:
+				metadata value "BG-OWNER" of loop-entity is "%player%"
+				make player ride loop-entity
+				stop
+		loop chickens in radius 5 of player:
+			metadata value "BG-PLANE" of loop-entity is "%player%"
+			make player ride loop-entity
 
 on PacketRetriveEvent:
-	if "%event.getPacketName()%" is "PacketPlayInSteerVehicle":
-		metadata value "BG-PARACHUTE" of event.getPlayer() is set:
-			event.setCancelled(true)
-		metadata value "BG-FLYING" of event.getPlayer() is set:
-			if distance between {bg::arena::%{bg::cache::player::%event.getPlayer()%::arena}%::start::%{bg::arena::%{bg::cache::player::%event.getPlayer()%::arena}%::ROUTE}%} and event.getPlayer() < yaml value "Settings.Misc.Allow-Jump-After" from "leaf.bg.config":
-				event.setCancelled(true)		
+	if {-bg::player::%event.getPlayer()%::state} is set:
+		if "%event.getPacketName()%" is "PacketPlayInSteerVehicle":
+			metadata value "BG-PARACHUTE" of event.getPlayer() is set:
+				event.setCancelled(true)
+			metadata value "BG-FLYING" of event.getPlayer() is set:
+				if distance between yaml value "%{-bg::player::%event.getPlayer()%::arena}%.Start.%{-bg::arena::%{-bg::player::%event.getPlayer()%::arena}%::ROUTE}%" from "leaf.bg.arenas" and event.getPlayer() < yaml value "Settings.Misc.Allow-Jump-After" from "leaf.bg.config":
+					event.setCancelled(true)		
 
 on right click on chest or trapped chest:	
-	if {bg::arena::%{bg::cache::player::%player%::arena}%::cache::status} is "IN-GAME" or "FLYING":	
+	if {-bg::arena::%{-bg::player::%player%::arena}%::status} is "IN-GAME" or "FLYING":	
 		if yaml value "Settings.Chest.Enabled" from "leaf.bg.config" is true:	
-			if {bg::arena::%{bg::cache::player::%player%::arena}%::cache::CHESTS::%location of event-block%} is not set:
+			if {-bg::arena::%{-bg::player::%player%::arena}%::CHESTS::%location of event-block%} is not set:
 				clear inventory of block at event-block
 				set {_items} to random number between yaml value "Settings.Chest.Min" from "leaf.bg.config" and yaml value "Settings.Chest.Max" from "leaf.bg.config"
-				set {_loot::*} to {bg::cache::chestItems::cache::*}	
+				set {_loot::*} to {-bg::chestItems::*}	
 				loop rounded {_items} times:
 					set {_slot} to rounded random number between 0 and 26
 					set {_item} to random element out of {_loot::*}
 					remove {_item} from {_loot::*}
 					add {_item} to slot {_slot} of event-block
-				add 1 to {bg::stats::Chests::%uuid of player%}
-				set {bg::arena::%{bg::cache::player::%player%::arena}%::cache::CHESTS::%location of event-block%} to location of event-block
+				add 1 to {-bg::stats::Chests::%uuid of player%}
+				set {-bg::arena::%{-bg::player::%player%::arena}%::CHESTS::%location of event-block%} to location of event-block
 					
 on hunger bar change:	
-	if {bg::cache::player::%player%::state} is "IN-GAME":
-		if {bg::arena::%{bg::cache::player::%player%::arena}%::cache::status} is "STARTING" or "WAITING":
+	if {-bg::player::%player%::state} is "IN-GAME":
+		if {-bg::arena::%{-bg::player::%player%::arena}%::status} is "STARTING" or "WAITING":
 			set player's hunger to 20
 		
 function bg_death_chest(p: player, arena: text):
@@ -523,14 +529,13 @@ function bg_death_chest(p: player, arena: text):
 		loop blocks in radius 1 of {_p}:
 			loop-block is air
 			set loop-block to chest
-			set {bg::arena::%{_arena}%::cache::CHESTS::%location of loop-block%} to location of loop-block
+			set {-bg::arena::%{_arena}%::CHESTS::%location of loop-block%} to location of loop-block
 			add {_helmet}, {_chestplate}, {_leggings} and {_boots} to loop-block
 			loop items in {_p}'s inventory:
 				add loop-item to loop-block
 			loop yaml list "Settings.Death-Chest.Extra-Items" from "leaf.bg.config":
-				set {_extra} to loop-value-2
-				add {_extra} parsed as material to loop-block
-			add location of loop-block to {bg::arena::%{_arena}%::cache::KILL-ME-PLS::*}
+				add "%loop-value-2%" parsed as material to loop-block
+			add location of loop-block to {-bg::arena::%{_arena}%::KILL-ME-PLS::*}
 			stop
 		loop items in {_p}'s inventory:
 			drop loop-item at {_p}
@@ -540,109 +545,102 @@ function bg_death_chest(p: player, arena: text):
 
 function bg_player_death(p: player, killer: text = "null"):
 	set {_uuid} to uuid of {_p}
-	set {_arena} to {bg::cache::player::%{_p}%::arena}
-	set {_players-left} to size of {bg::arena::%{_arena}%::cache::ninjas::*}
+	set {_arena} to {-bg::player::%{_p}%::arena}
+	set {_players-left} to size of {-bg::arena::%{_arena}%::ninjas::*}
 	bg_death_chest({_p}, {_arena})
 	bg_remove({_p}, {_arena})
 	create lightning effect at {_p}
-	add {_p} to {bg::arena::%{_arena}%::cache::bad-ninjas::*}
-	add 1 to {bg::stats::Deaths::%{_uuid}%}
+	add {_p} to {-bg::arena::%{_arena}%::bad-ninjas::*}
+	add 1 to {-bg::stats::Deaths::%{_uuid}%}
 	set {_p}'s gamemode to spectator
-	send title "&e&l##%size of {bg::arena::%{_arena}%::cache::ninjas::*}+1% &c&lGAME OVER" with subtitle "&eBATTLE ROYALE" to {_p} with 10 fadein and 10 fadeout for 70
+	send title "&e&l##%size of {-bg::arena::%{_arena}%::ninjas::*}+1% &c&lGAME OVER" with subtitle "&eBATTLE ROYALE" to {_p} with 10 fadein and 10 fadeout for 70
 	if {_killer} != "null":
 		set {_killer} to {_killer} parsed as player
 		if {_killer} is not {_p}:
 			set {_uuid} to uuid of {_killer}
-			add 1 to {bg::stats::Kills::%{_uuid}%}
-			add 1 to {bg::cache::player::%{_killer}%::kills}
+			add 1 to {-bg::stats::Kills::%{_uuid}%}
+			add 1 to {-bg::player::%{_killer}%::kills}
 			if {_killer}'s tool is set:
 				set {_display} to name of {_killer}'s tool
 				set {_display} to first element of {_display} split at " of " 
 				replace all "_" with " " in {_display}
 			else:
 				set {_display} to "Unknown"
-			set {_bar} to replacer "{victim}", "{players-left}", "{kills}", "{tool}" and "{attacker}" with {_p}'s display name, "%{_players-left}%", "%{bg::cache::player::%{_killer}%::kills}%", "%{_display}%" and {_killer}'s display name in yaml value "Messages.Kill.Action-Bar" from "leaf.bg.config"
-			set {_msg} to replacer "{victim}", "{players-left}", "{kills}", "{tool}" and "{attacker}" with {_p}'s display name, "%{_players-left}%", "%{bg::cache::player::%{_killer}%::kills}%", "%{_display}%" and {_killer}'s display name in yaml value "Messages.Kill.Msg" from "leaf.bg.config"
-			send {_msg} to {bg::arena::%{_arena}%::cache::ninjas::*}
+			set {_bar} to replacer "{victim}", "{players-left}", "{kills}", "{tool}" and "{attacker}" with {_p}'s display name, "%{_players-left}%", "%{-bg::player::%{_killer}%::kills}%", "%{_display}%" and {_killer}'s display name in yaml value "Messages.Kill.Action-Bar" from "leaf.bg.config"
+			set {_msg} to replacer "{victim}", "{players-left}", "{kills}", "{tool}" and "{attacker}" with {_p}'s display name, "%{_players-left}%", "%{-bg::player::%{_killer}%::kills}%", "%{_display}%" and {_killer}'s display name in yaml value "Messages.Kill.Msg" from "leaf.bg.config"
+			send {_msg} to {-bg::arena::%{_arena}%::ninjas::*}
 			send action bar "%{_bar}%" to {_killer} 
 		else:
-			send replacer "{victim}" with {_p}'s display name in yaml value "Messages.Death" from "leaf.bg.config" to {bg::arena::%{_arena}%::cache::ninjas::*}			
+			send replacer "{victim}" with {_p}'s display name in yaml value "Messages.Death" from "leaf.bg.config" to {-bg::arena::%{_arena}%::ninjas::*}			
 	else:
-		send replacer "{victim}" with {_p}'s display name in yaml value "Messages.Death" from "leaf.bg.config" to {bg::arena::%{_arena}%::cache::ninjas::*}
+		send replacer "{victim}" with {_p}'s display name in yaml value "Messages.Death" from "leaf.bg.config" to {-bg::arena::%{_arena}%::ninjas::*}
 
 on damage of player:
-	if {bg::cache::player::%victim%::state} is "IN-GAME":
-		if {bg::arena::%{bg::cache::player::%victim%::arena}%::cache::status} is "STARTING" or "WAITING":
+	if {-bg::player::%victim%::state} is "IN-GAME":
+		if {-bg::arena::%{-bg::player::%victim%::arena}%::status} is "STARTING" or "WAITING":
 			cancel event
 			damage cause is void
-			teleport victim to {bg::arena::%{bg::cache::player::%victim%::arena}%::lobby}
-		if {bg::arena::%{bg::cache::player::%victim%::arena}%::cache::status} is "IN-GAME" or "FLYING":
+			teleport victim to yaml value "%{-bg::player::%victim%::arena}%.Lobby" from "leaf.bg.arenas"
+		if {-bg::arena::%{-bg::player::%victim%::arena}%::status} is "IN-GAME" or "FLYING":
 			if damage >= health of victim:
 				cancel event
 				if attacker is set:
 					bg_player_death(victim, "%attacker%")
 				else:
 					bg_player_death(victim)					
-		if {bg::arena::%{bg::cache::player::%victim%::arena}%::cache::status} is "RESTARTING":				
+		if {-bg::arena::%{-bg::player::%victim%::arena}%::status} is "RESTARTING":				
 			cancel event	
 						
 function bg_remove(p: player, arena: text):
-	remove {_p} from {bg::arena::%{_arena}%::cache::ninjas::*}
-	if {bg::arena::%{_arena}%::cache::status} is "IN-GAME" or "FLYING" or "RESTARTING":	
-		size of {bg::arena::%{_arena}%::cache::ninjas::*} = 1
-		set {bg::arena::%{_arena}%::cache::status} to "RESTARTING"
+	remove {_p} from {-bg::arena::%{_arena}%::ninjas::*}
+	if {-bg::arena::%{_arena}%::status} is "IN-GAME" or "FLYING":	
+		size of {-bg::arena::%{_arena}%::ninjas::*} = 1
+		set {-bg::arena::%{_arena}%::status} to "RESTARTING"
 		bg_delete_arena_entities({_arena})
-		loop {bg::arena::%{_arena}%::cache::ninjas::*}:
+		loop {-bg::arena::%{_arena}%::ninjas::*}:
 			set {_p} to loop-value-1
 		send title "&e&l##1 &a&lYOU WON" with subtitle "&eBATTLE ROYALE" to {_p} with 10 fadein and 10 fadeout for 80
 		loop yaml list "Messages.Summary" from "leaf.bg.config":
 			set {_msg} to loop-value-1
 			replace all "{player}" with "%{_p}%" in {_msg}
-			replace all "{kills}" with "%{bg::cache::player::%{_p}%::kills}%" in {_msg}
-			send message centered colored {_msg} to {bg::arena::%{_arena}%::cache::ninjas::*} and {bg::arena::%{_arena}%::cache::bad-ninjas::*}
+			replace all "{kills}" with "%{-bg::player::%{_p}%::kills}%" in {_msg}
+			send message centered colored {_msg} to {-bg::arena::%{_arena}%::ninjas::*} and {-bg::arena::%{_arena}%::bad-ninjas::*}
 		set {_uuid} to uuid of {_p}
-		add 1 to {bg::stats::Wins::%{_uuid}%}
+		add 1 to {-bg::stats::Wins::%{_uuid}%}
 		loop 10 times:
 			minecraft version contains "1.8" or "1.9" or "1.10" or "1.11" or "1.12"
-			if {bg::cache::player::%{_p}%::state} is "IN-GAME":
+			if {-bg::player::%{_p}%::state} is "IN-GAME":
 				launch "BALL" firework at location of {_p} timed 1 coloured "RED" and "BLUE" AND "YELLOW" AND "GREEN"
 				wait a second	
 		bg_resetarena({_arena})
 
 on load:
-	delete {bg::cache::*}
+	delete {-bg::*}
 	loop "Place" and "Break":
 		loop yaml list "Settings.Blocks.Allowed-To-%loop-value-1%" from "leaf.bg.config":
 			set {_block} to loop-value-2
 			if {_block} parsed as material is set:
-				add {_block} to {bg::arena::blocks-to-%loop-value-1%::cache::*}
+				add {_block} to {-bg::arena::blocks-to-%loop-value-1%::*}
 			else:
 				broadcast "BG: item %loop-value-2% from Blocks To %loop-value-1% is invalid."
 		wait a tick
 	loop yaml list "Settings.Chest.Normal.Loot" from "leaf.bg.config":
 		if loop-value-1 != "bandage":
-			add "%loop-value-1%" parsed as material to {bg::cache::chestItems::cache::*}
+			add "%loop-value-1%" parsed as material to {-bg::chestItems::*}
 		if loop-value-1 = "bandage":	
-			add paper named yaml value "Settings.Items.Bandage.Name" from "leaf.bg.config" to {bg::cache::chestItems::cache::*}
-	add yaml list "Settings.Chest.Custom-Loot" from "leaf.bg.config" to {bg::cache::chestItems::cache::*} 			
+			add paper named yaml value "Settings.Items.Bandage.Name" from "leaf.bg.config" to {-bg::chestItems::*}
+	add yaml list "Settings.Chest.Custom-Loot" from "leaf.bg.config" to {-bg::chestItems::*} 			
 	send "&7&l--------------------------------------------" to console
 	send " " to console
 	send "&aLoading &ev.{@plugin-version}&a..." to console
 	broadcast "&aBattle Royale loaded!"
 	send " " to console
 	send "&7&l--------------------------------------------" to console
-	loop {bg::arenas::*}:
-		if {bg::arena::%loop-value%::maxplayers} is not set:
-			set {bg::arena::%loop-value%::maxplayers} to 100
-		if {bg::arena::%loop-value%::minplayers} is not set:
-			set {bg::arena::%loop-value%::maxplayers} to 2			
-		delete {bg::arena::%loop-value-1%::cache::ninjas::*} and {bg::arena::%loop-value-1%::cache::bad-ninjas::*}
-		bg_resetarena(loop-value-1)
-		loop numbers between 1 and {bg::arena::%loop-value-1%::route::id}:
-			{bg::arena::%loop-value-1%::start::%rounded loop-value-2%} is set
-			set y-coords of {bg::arena::%loop-value-1%::start::%rounded loop-value-2%} to y-coords of {bg::arena::%loop-value-1%::end::%rounded loop-value-2%}		
-	set {bg::cache::TitleManager} to Bukkit.getServer().getPluginManager().getPlugin("TitleManager")	
-	set {bg::cache::Items::Leave} to yaml value "Settings.Items.Leave.Item" from "leaf.bg.config" parsed as material named yaml value "Settings.Items.Leave.Name" from "leaf.bg.config"		
+	loop {-bg::arenas::*}:		
+		delete {-bg::arena::%loop-value-1%::ninjas::*} and {-bg::arena::%loop-value-1%::bad-ninjas::*}
+		bg_resetarena(loop-value-1)		
+	set {-bg::TitleManager} to Bukkit.getServer().getPluginManager().getPlugin("TitleManager")	
+	set {-bg::Items::Leave} to yaml value "Settings.Items.Leave.Item" from "leaf.bg.config" parsed as material named yaml value "Settings.Items.Leave.Name" from "leaf.bg.config"		
 
 on unload:
 	send "&7&l--------------------------------------------" to console
@@ -656,42 +654,35 @@ function bg_stats(do: text, p: player):
 	set {_uuid} to uuid of {_p}
 	{_do} is "check":
 		loop "Kills", "Wins", "Deaths", "PlayedGames" and "Chests":
-			{bg::stats::%loop-value%::%{_uuid}%} is not set
-			set {bg::stats::%loop-value%::%{_uuid}%} to 0
-	{_do} is "reset":
-		loop "Kills", "Wins", "Deaths", "PlayedGames" and "Chests":
-			set {bg::stats::%loop-value%::%{_uuid}%} to 0	
+			yaml value "%uuid of {_p}%.%loop-value-1%" from "leaf.bg.playerdata" is not set
+			set yaml value "%uuid of {_p}%.%loop-value-1%" from "leaf.bg.playerdata" to 0
+	save yaml "leaf.bg.playerdata"
 	
 function bg_leave(p: player):
-	if {bg::cache::player::%{_p}%::state} is set:
-		if {bg::cache::player::%{_p}%::state} is "IN-GAME":
-			set {_arena} to {bg::cache::player::%{_p}%::arena}
-			bg_remove({_p}, {_arena})
-			if size of {bg::arena::%{_arena}%::cache::ninjas::*} = 0:
-				if {bg::arena::%{_arena}%::cache::status} is not "RESTARTING":
-					bg_resetarena({_arena})
-			send replacer "{player}" with {_p}'s display name in yaml value "Messages.Leave" from "leaf.bg.config" to {bg::arena::%{bg::cache::player::%{_p}%::arena}%::cache::ninjas::*}		
-		loop "arena" and "state" and "bandaging":
-			delete {bg::cache::player::%{_p}%::%loop-value%}	
+	if {-bg::player::%{_p}%::state} is set:
+		if {-bg::player::%{_p}%::state} is "IN-GAME":
+			bg_remove({_p}, {-bg::player::%{_p}%::arena})
+			send replacer "{player}" with {_p}'s display name in yaml value "Messages.Leave" from "leaf.bg.config" to {-bg::arena::%{-bg::player::%{_p}%::arena}%::ninjas::*}		
+		delete {-bg::player::%{_p}%::*}	
 		bg_clear_player({_p})
 		delete scoreboard of {_p}
-		teleport {_p} to {bg::lobby}		
+		teleport {_p} to {-bg::lobby}	
 		
 function bg_join(p: player, arena: text):	
-	if {bg::cache::player::%{_p}%::state} is not set:
-		if {bg::arena::%{_arena}%::state} is "ready":
-			if {bg::arena::%{_arena}%::cache::status} is "WAITING" or "STARTING":
-				if size of {bg::arena::%{_arena}%::cache::ninjas::*} < {bg::arena::%{_arena}%::maxplayers}:
+	if {-bg::player::%{_p}%::state} is not set:
+		if {-bg::arena::%{_arena}%::state} is "ready":
+			if {-bg::arena::%{_arena}%::status} is "WAITING" or "STARTING":
+				if size of {-bg::arena::%{_arena}%::ninjas::*} < yaml value "%{_arena}%.MaxPlayers" from "leaf.bg.arenas":
 					bg_clear_player({_p})
-					set {bg::cache::player::%{_p}%::state} to "IN-GAME"
-					set {bg::cache::player::%{_p}%::arena} to {_arena}
-					set {bg::cache::player::%{_p}%::kills} to 0
-					set slot yaml value "Settings.Items.Leave.Slot" from "leaf.bg.config" of {_p} to {bg::cache::Items::Leave}
-					add {_p} to {bg::arena::%{_arena}%::cache::ninjas::*}		
-					if size of {bg::arena::%{_arena}%::cache::ninjas::*} = {bg::arena::%{_arena}%::minplayers}:
+					set {-bg::player::%{_p}%::state} to "IN-GAME"
+					set {-bg::player::%{_p}%::arena} to {_arena}
+					set {-bg::player::%{_p}%::kills} to 0
+					set slot yaml value "Settings.Items.Leave.Slot" from "leaf.bg.config" of {_p} to {-bg::Items::Leave}
+					add {_p} to {-bg::arena::%{_arena}%::ninjas::*}		
+					if size of {-bg::arena::%{_arena}%::ninjas::*} = yaml value "%{_arena}%.MinPlayers" from "leaf.bg.arenas":
 						bg_start_countdown({_arena})											
-					send replacer "{player}" and "{players-count}" with {_p}'s display name and "%size of {bg::arena::%{_arena}%::cache::ninjas::*}%" in yaml value "Messages.Join" from "leaf.bg.config" to {bg::arena::%{_arena}%::cache::ninjas::*}
-					teleport {_p} to {bg::arena::%{_arena}%::lobby}
+					send replacer "{player}" and "{players-count}" with {_p}'s display name and "%size of {-bg::arena::%{_arena}%::ninjas::*}%" in yaml value "Messages.Join" from "leaf.bg.config" to {-bg::arena::%{_arena}%::ninjas::*}
+					teleport {_p} to yaml value "%{_arena}%.Lobby" from "leaf.bg.arenas"
 					bg_createBoard({_p}, "BG-WAITING", 9)
 				else:
 					send "&7This arena is full" to {_p}
@@ -706,19 +697,19 @@ on join:
 	bg_stats("check", player)
 		
 on right click:
-	if {bg::cache::player::%player%::state} is set:
+	if {-bg::player::%player%::state} is set:
 		name of event-item is yaml value "Settings.Items.Leave.Name" from "leaf.bg.config":
 			cancel event
 			bg_leave(player)
 		if event-item = paper named yaml value "Settings.Items.Bandage.Name" from "leaf.bg.config":
-			if {bg::cache::player::%player%::bandaging} is not set:
-				set {bg::cache::player::%player%::bandaging} to true
+			if {-bg::player::%player%::bandaging} is not set:
+				set {-bg::player::%player%::bandaging} to true
 				set {_bandage} to event-item
 				send "&7Bandaging... do not move"
 				set {_loc} to location of player
 				while player's tool is {_bandage}:
 					if distance between {_loc} and player > 0.5:
-						delete {bg::cache::player::%player%::bandaging}
+						delete {-bg::player::%player%::bandaging}
 						send "&c&7Bandaging canceled"
 						stop
 					add 5 to {_timer}	
@@ -726,14 +717,14 @@ on right click:
 					if {_timer} = 1*{_timer}:
 						play sound "DRINK" to player with volume 1 and pitch 1
 					if {_timer} = 100:
-						delete {bg::cache::player::%player%::bandaging}
+						delete {-bg::player::%player%::bandaging}
 						remove 1 of {_bandage} from player
 						heal player
 						send "&aBandage used"
 					wait 8 ticks
 
 on quit:
-	if {bg::cache::player::%player%::state} is set:
+	if {-bg::player::%player%::state} is set:
 		bg_leave(player)
 	delete scoreboard of player	
 
@@ -752,7 +743,7 @@ on damage of entity:
 		cancel event
 
 function bg_delete_arena_entities(arena: text):
-	set {_w} to {bg::arena::%{_arena}%::center}'s world
+	set {_w} to world of yaml value "%{_arena}%.Lobby" from "leaf.bg.arenas"
 	loop ...{_w}.getEntities():
 		loop-value != player
 		loop-value.remove()		
@@ -768,7 +759,7 @@ function bg_load_chunks(loc: location):
 		add 16 to z-coordinate of {_pos}
 		
 function bg_player_track_plane2(p: player, arena: text, base: entity, plane: entity):
-	while {bg::arena::%{_arena}%::cache::status} is "FLYING":
+	while {-bg::arena::%{_arena}%::status} is "FLYING":
 		set {_loc} to location of {_plane}
 		add 10 to y-coords of {_loc}
 		set velocity of {_base} to vector between {_base} and {_loc}		
@@ -799,11 +790,11 @@ function bg_player_track_plane(p: player, arena: text, start: location, plane: e
 		wait a tick
 
 function bw_border_closing(arena: text, time: number):
-	set {bg::arena::%{_arena}%::cache::next-border} to "&cBORDER CLOSING"
-	set {_w} to {bg::arena::%{_arena}%::center}'s world
-	{_w}.getWorldBorder().setSize({bg::arena::%{_arena}%::cache::border::current-size} and {_time})
+	set {-bg::arena::%{_arena}%::next-border} to "&cBORDER CLOSING"
+	set {_w} to world of yaml value "%{_arena}%.Lobby" from "leaf.bg.arenas"
+	{_w}.getWorldBorder().setSize({-bg::arena::%{_arena}%::border::current-size} and {_time})
 	loop {_time} times:
-		if {bg::arena::%{_arena}%::cache::status} is "FLYING" or "IN-GAME":
+		if {-bg::arena::%{_arena}%::status} is "FLYING" or "IN-GAME":
 			wait a second
 		else:
 			stop
@@ -816,11 +807,11 @@ on explode:
 function bg_start_border(arena: text):
 	set {_time_machine} to 1
 	set {_time_machine2} to 60
-	while {bg::arena::%{_arena}%::cache::status} is "FLYING" or "IN-GAME":
+	while {-bg::arena::%{_arena}%::status} is "FLYING" or "IN-GAME":
 		remove 1 from {_time_machine2}
 		if {_time_machine2} = 0:
 			if {_time_machine} = 0:
-				set {bg::arena::%{_arena}%::cache::border::current-size} to {bg::arena::%{_arena}%::cache::border::current-size}/2
+				set {-bg::arena::%{_arena}%::border::current-size} to {-bg::arena::%{_arena}%::border::current-size}/2
 				bw_border_closing({_arena}, 120)
 				stop
 			set {_time_machine2} to 60
@@ -833,13 +824,13 @@ function bg_start_border(arena: text):
 			set {_mark1} to 0
 		else:
 			set {_mark1} to ""			
-		set {bg::arena::%{_arena}%::cache::next-border} to "%{_mark1}%%{_time_machine}%:%{_mark2}%%{_time_machine2}%"
+		set {-bg::arena::%{_arena}%::next-border} to "%{_mark1}%%{_time_machine}%:%{_mark2}%%{_time_machine2}%"
 		wait a second
 
 function plane_start_route(arena: text, plane: entity, start: location, end: location):
 	set {_oldY} to y-coords of {_start}
 	set {_dir} to {_end}.getDirection()
-	while {bg::arena::%{_arena}%::cache::status} is "FLYING":
+	while {-bg::arena::%{_arena}%::status} is "FLYING":
 		{_start}.getChunk().load()
 		{_dir}.multiply(1)
 		{_start}.add({_dir})
@@ -851,28 +842,28 @@ function plane_start_route(arena: text, plane: entity, start: location, end: loc
 		if y-coords of {_start} < {_oldY}:
 			set {_calc} to {_oldY} - y-coords of {_start}
 			add {_calc} to y-coords of {_start}
-		if distance between {bg::arena::%{_arena}%::start::%{bg::arena::%{_arena}%::ROUTE}%} and {_plane} > yaml value "Settings.Misc.Allow-Jump-After" from "leaf.bg.config":
-			loop {bg::arena::%{_arena}%::cache::ninjas::*}:
+		if distance between yaml value "%{_arena}%.Start.%{-bg::arena::%{_arena}%::ROUTE}%" from "leaf.bg.arenas" and {_plane} > yaml value "Settings.Misc.Allow-Jump-After" from "leaf.bg.config":
+			loop {-bg::arena::%{_arena}%::ninjas::*}:
 				metadata value "BG-FLYING" of loop-value is set:	
 					send title "&e" with subtitle "&ePRESS &bSNEAK &eTO OPEN PARACHUTE" to loop-value-1 with 0 fadein and 0 fadeout for 20		
-		if distance between {_plane} and {bg::arena::%{_arena}%::end::%{bg::arena::%{_arena}%::ROUTE}%} < 50:
+		if distance between {_plane} and {-bg::arena::%{_arena}%::end::%{-bg::arena::%{_arena}%::ROUTE}%} < 50:
 			bg_load_chunks({_start})
 			wait a tick
-			loop {bg::arena::%{_arena}%::cache::ninjas::*}:
+			loop {-bg::arena::%{_arena}%::ninjas::*}:
 				metadata value "BG-FLYING" of loop-value is set:
 					bg_parachute(loop-value)	
-			loop entities in radius 100 of {bg::arena::%{_arena}%::end::%{bg::arena::%{_arena}%::ROUTE}%}:
+			loop entities in radius 100 of {-bg::arena::%{_arena}%::end::%{-bg::arena::%{_arena}%::ROUTE}%}:
 				metadata value "BG-PLANE" of loop-entity is "DRAGON":
 					clear loop-entity	
-			set {bg::arena::%{_arena}%::cache::status} to "IN-GAME"
+			set {-bg::arena::%{_arena}%::status} to "IN-GAME"
 			stop					
 		wait a tick	
 
 function bg_start(arena: text):
-	set {bg::arena::%{_arena}%::cache::status} to "FLYING"
-	set {bg::arena::%{_arena}%::ROUTE} to rounded random number between 1 and {bg::arena::%{_arena}%::route::id}-1
-	set {_start} to {bg::arena::%{_arena}%::start::%{bg::arena::%{_arena}%::ROUTE}%}
-	set {_end} to {bg::arena::%{_arena}%::end::%{bg::arena::%{_arena}%::ROUTE}%}	
+	set {-bg::arena::%{_arena}%::status} to "FLYING"
+	set {-bg::arena::%{_arena}%::ROUTE} to rounded random number between 1 and {-bg::arena::%{_arena}%::route::id}-1
+	set {_start} to yaml value "%{_arena}%.Start.%{-bg::arena::%{_arena}%::ROUTE}%" from "leaf.bg.arenas"
+	set {_end} to yaml value "%{_arena}%.End.%{-bg::arena::%{_arena}%::ROUTE}%" from "leaf.bg.arenas"
 	bg_delete_arena_entities({_arena})
 	{_start}.getChunk().load()
 	spawn an ender dragon at {_start}
@@ -882,23 +873,23 @@ function bg_start(arena: text):
 	else:
 		add "{Silent:1b,NoGravity:1b,Name:""%yaml value ""Settings.Misc.Dragon-Name"" from ""leaf.bg.config""%"",DragonPhase:0}" to nbt of {_plane} 
 	set metadata value "BG-PLANE" of {_plane} to "DRAGON"		
-	set {_w} to {bg::arena::%{_arena}%::center}'s world
-	set {bg::arena::%{_arena}%::cache::border::current-size} to {bg::arena::%{_arena}%::border::first}
-	set {bg::arena::%{_arena}%::cache::game-border} to a random element out of {bg::arena::%{_arena}%::borders::*}
-	{_w}.getWorldBorder().setSize({bg::arena::%{_arena}%::cache::border::current-size})	
-	{_w}.getWorldBorder().setCenter({bg::arena::%{_arena}%::cache::game-border})
+	set {_w} to world of yaml value "%{_arena}%.Lobby" from "leaf.bg.arenas"
+	set {-bg::arena::%{_arena}%::border::current-size} to yaml value "%{_arena}%.Border-First" from "leaf.bg.arenas"
+	set {-bg::arena::%{_arena}%::game-border} to a random element out of yaml list "%{_arena}%.Borders" from "leaf.bg.arenas"
+	{_w}.getWorldBorder().setSize({-bg::arena::%{_arena}%::border::current-size})	
+	{_w}.getWorldBorder().setCenter({-bg::arena::%{_arena}%::game-border})
 	bg_start_border({_arena})	
-	loop {bg::arena::%{_arena}%::cache::ninjas::*}:	
+	loop {-bg::arena::%{_arena}%::ninjas::*}:	
 		bg_clear_player(loop-value)
 		set loop-value's gamemode to spectator
 	plane_start_route({_arena}, {_plane}, {_start}, {_end})			
-	loop {bg::arena::%{_arena}%::cache::ninjas::*}:
+	loop {-bg::arena::%{_arena}%::ninjas::*}:
 		apply blindness without any particles to loop-value-1 for 3 seconds
 		bg_createBoard(loop-value, "BG-GAME", 15)	
 		apply invisibility without any particles to loop-value for 7 days
 		loop-value-1.setAllowFlight(true)
 		loop-value-1.setFlying(true)
-		add 1 to {bg::stats::PlayedGames::%uuid of loop-value%}
+		add 1 to {-bg::stats::PlayedGames::%uuid of loop-value%}
 		bg_player_track_plane(loop-value, {_arena}, {_start}, {_plane})				
 
 function bg_clear_parachute(p: player):
@@ -924,17 +915,17 @@ function bg_parachute(p: player):
 	set metadata value "BG-OWNER" of {_base} to "%{_p}%"	
 	spawn an armor stand at {_p}
 	set {_left} to spawned armor stand	
-	if {bg::stats::BANNER::left::%{_uuid}%} is set:	
-		set {_left}'s helmet to {bg::stats::BANNER::left::%{_uuid}%}
+	if {-bg::stats::BANNER::left::%{_uuid}%} is set:	
+		set {_left}'s helmet to {-bg::stats::BANNER::left::%{_uuid}%}
 	else:
-		set {_left}'s helmet to {bg::banner}
+		set {_left}'s helmet to {-bg::banner}
 	add "{Pose:{Head:[265f,94f,0f]},NoGravity:1b,Invisible:1b}" to nbt of {_left}
 	spawn an armor stand at {_p}
 	set {_right} to spawned armor stand
-	if {bg::stats::BANNER::right::%{_uuid}%} is set:	
-		set {_right}'s helmet to {bg::stats::BANNER::right::%{_uuid}%}
+	if {-bg::stats::BANNER::right::%{_uuid}%} is set:	
+		set {_right}'s helmet to {-bg::stats::BANNER::right::%{_uuid}%}
 	else:
-		set {_right}'s helmet to {bg::banner}
+		set {_right}'s helmet to {-bg::banner}
 	add "{Pose:{Head:[265f,270f,0f]},NoGravity:1b,Invisible:1b}" to nbt of {_right}
 	spawn an armor stand at {_p}		
 	set {_center} to spawned armor stand	
@@ -966,77 +957,77 @@ function bg_parachute(p: player):
 		wait a tick
 
 on break:
-	if {bg::cache::player::%player%::state} is "IN-GAME":
-		if {bg::arena::%{bg::cache::player::%player%::arena}%::cache::status} is "IN-GAME" or "FLYING":
-			loop {bg::arena::blocks-to-break::cache::*}:
+	if {-bg::player::%player%::state} is "IN-GAME":
+		if {-bg::arena::%{-bg::player::%player%::arena}%::status} is "IN-GAME" or "FLYING":
+			loop {-bg::arena::blocks-to-break::*}:
 				loop-value is event-block 	
-				if {bg::arena::%{bg::cache::player::%player%::arena}%::PLACED-BLOCKS::%location of event-block%} is set:
-					delete {bg::arena::%{bg::cache::player::%player%::arena}%::PLACED-BLOCKS::%location of event-block%}
+				if {-bg::arena::%{-bg::player::%player%::arena}%::PLACED-BLOCKS::%location of event-block%} is set:
+					delete {-bg::arena::%{-bg::player::%player%::arena}%::PLACED-BLOCKS::%location of event-block%}
 					stop
-				if {bg::arena::%{bg::cache::player::%player%::arena}%::PLACED-BLOCKS::%location of event-block%} is not set:	
-					set {bg::arena::%{bg::cache::player::%player%::arena}%::BROKEN-BLOCKS::%location of event-block%} to location of event-block
-					set {bg::arena::%{bg::cache::player::%player%::arena}%::BROKEN-BLOCKS-TYPE::%location of event-block%} to type of event-block
+				if {-bg::arena::%{-bg::player::%player%::arena}%::PLACED-BLOCKS::%location of event-block%} is not set:	
+					set {-bg::arena::%{-bg::player::%player%::arena}%::BROKEN-BLOCKS::%location of event-block%} to location of event-block
+					set {-bg::arena::%{-bg::player::%player%::arena}%::BROKEN-BLOCKS-TYPE::%location of event-block%} to type of event-block
 				stop
 			cancel event										
 		else:
 			cancel event
 	
 on place:
-	if {bg::cache::player::%player%::state} is "IN-GAME":
-		if {bg::arena::%{bg::cache::player::%player%::arena}%::cache::status} is "IN-GAME" or "FLYING":
-			loop {bg::arena::blocks-to-place::cache::*}:
+	if {-bg::player::%player%::state} is "IN-GAME":
+		if {-bg::arena::%{-bg::player::%player%::arena}%::status} is "IN-GAME" or "FLYING":
+			loop {-bg::arena::blocks-to-place::*}:
 				loop-value is event-block 
-				if {bg::arena::%{bg::cache::player::%player%::arena}%::PLACED-BLOCKS::%location of event-block%} is not set:
-					set {bg::arena::%{bg::cache::player::%player%::arena}%::PLACED-BLOCKS::%location of event-block%} to location of event-block
+				if {-bg::arena::%{-bg::player::%player%::arena}%::PLACED-BLOCKS::%location of event-block%} is not set:
+					set {-bg::arena::%{-bg::player::%player%::arena}%::PLACED-BLOCKS::%location of event-block%} to location of event-block
 				stop
 			cancel event
 		else:
 			cancel event
 
 function bg_start_countdown(arena: text):
-	set {bg::arena::%{_arena}%::cache::status} to "STARTING"
-	loop {bg::arena::%{_arena}%::cache::seconds} times:
-		if {bg::arena::%{_arena}%::cache::status} is "STARTING" or "WAITING":
-			size of {bg::arena::%{_arena}%::cache::ninjas::*} >= 2
-			remove 1 from {bg::arena::%{_arena}%::cache::seconds}	
-			if {bg::arena::%{_arena}%::cache::seconds} = 1 or 2 or 3 or 4 or 5 or 10:
-				send replacer "{seconds}" with "%{bg::arena::%{_arena}%::cache::seconds}%" in yaml value "Messages.Starting" from "leaf.bg.config" to {bg::arena::%{_arena}%::cache::ninjas::*}	
-			if {bg::arena::%{_arena}%::cache::seconds} = 1:
-				size of {bg::arena::%{_arena}%::cache::ninjas::*} >= 2:
+	set {-bg::arena::%{_arena}%::status} to "STARTING"
+	loop {-bg::arena::%{_arena}%::seconds} times:
+		if {-bg::arena::%{_arena}%::status} is "STARTING" or "WAITING":
+			size of {-bg::arena::%{_arena}%::ninjas::*} >= 2
+			remove 1 from {-bg::arena::%{_arena}%::seconds}	
+			if {-bg::arena::%{_arena}%::seconds} = 1 or 2 or 3 or 4 or 5 or 10:
+				send replacer "{seconds}" with "%{-bg::arena::%{_arena}%::seconds}%" in yaml value "Messages.Starting" from "leaf.bg.config" to {-bg::arena::%{_arena}%::ninjas::*}	
+			if {-bg::arena::%{_arena}%::seconds} = 1:
+				size of {-bg::arena::%{_arena}%::ninjas::*} >= 2:
 					bg_start({_arena})
 				else:
-					set {bg::arena::%{_arena}%::cache::status} to "WAITING"
-					set {bg::arena::%{_arena}%::cache::seconds} to yaml value "Settings.Timers.In-Lobby" from "leaf.bg.config"
+					set {-bg::arena::%{_arena}%::status} to "WAITING"
+					set {-bg::arena::%{_arena}%::seconds} to yaml value "Settings.Timers.In-Lobby" from "leaf.bg.config"
 			wait a second			
 		else:
 			stop
 		
 function bg_resetarena(arena: text):
-	set {_w} to {bg::arena::%{_arena}%::center}'s world
+	set {_w} to world of yaml value "%{_arena}%.Lobby" from "leaf.bg.arenas"
 	{_w}.getWorldBorder().reset()
 	{_w}.getWorldBorder().setSize(10000)
-	loop {bg::arena::%{_arena}%::cache::ninjas::*} and {bg::arena::%{_arena}%::cache::bad-ninjas::*}:
-		delete {bg::cache::player::%loop-value-1%::*}		
+	loop {-bg::arena::%{_arena}%::ninjas::*} and {-bg::arena::%{_arena}%::bad-ninjas::*}:
+		delete {-bg::player::%loop-value-1%::*}		
 		bg_clear_player(loop-value-1)
 		delete scoreboard of loop-value-1
-		teleport loop-value-1 to {bg::lobby}
-	loop {bg::arena::%{_arena}%::cache::CHESTS::*}:
+		teleport loop-value-1 to {-bg::lobby}
+	loop {-bg::arena::%{_arena}%::CHESTS::*}:
 		clear inventory of block at loop-value
-	loop {bg::arena::%{_arena}%::cache::KILL-ME-PLS::*}:
+	loop {-bg::arena::%{_arena}%::KILL-ME-PLS::*}:
 		set block at loop-value to air
-		remove loop-value from {bg::arena::%{_arena}%::cache::KILL-ME-PLS::*}
-	delete {bg::arena::%{_arena}%::cache::*}	
+		remove loop-value from {-bg::arena::%{_arena}%::KILL-ME-PLS::*}
+	delete {-bg::arena::%{_arena}%::*}	
 	bg_delete_arena_entities({_arena})
-	loop {bg::arena::%{_arena}%::PLACED-BLOCKS::*}:
-		set block at location of {bg::arena::%{_arena}%::PLACED-BLOCKS::%loop-index%} to air
+	loop {-bg::arena::%{_arena}%::PLACED-BLOCKS::*}:
+		set block at location of {-bg::arena::%{_arena}%::PLACED-BLOCKS::%loop-index%} to air
 		wait a tick
-	loop {bg::arena::%{_arena}%::BROKEN-BLOCKS::*}:
-		set block at location of {bg::arena::%{_arena}%::BROKEN-BLOCKS::%loop-index%} to {bg::arena::%{_arena}%::BROKEN-BLOCKS-TYPE::%loop-index%}
+	loop {-bg::arena::%{_arena}%::BROKEN-BLOCKS::*}:
+		set block at location of {-bg::arena::%{_arena}%::BROKEN-BLOCKS::%loop-index%} to {-bg::arena::%{_arena}%::BROKEN-BLOCKS-TYPE::%loop-index%}
 		wait a tick		
-	delete {bg::arena::%{_arena}%::BROKEN-BLOCKS::*}
-	delete {bg::arena::%{_arena}%::PLACED-BLOCKS::*}	
-	set {bg::arena::%{_arena}%::cache::seconds} to yaml value "Settings.Timers.In-Lobby" from "leaf.bg.config"
-	set {bg::arena::%{_arena}%::cache::status} to "WAITING"
+	delete {-bg::arena::%{_arena}%::BROKEN-BLOCKS::*}
+	delete {-bg::arena::%{_arena}%::PLACED-BLOCKS::*}	
+	set {-bg::arena::%{_arena}%::seconds} to yaml value "Settings.Timers.In-Lobby" from "leaf.bg.config"
+	set {-bg::arena::%{_arena}%::status} to "WAITING"
 							
 function bg_clear_player(p: player):						
 	heal {_p}
@@ -1076,25 +1067,25 @@ function bg_setSlot(p: player, slot: integer, t: text):
 		set scoreboard line {_slot} of {_p} to "%{_d::%{_slot}%}%%{_t}%"		
 	
 function bg_createBoard(p: player, t: text, size: integer = 15):
-	set {_arena} to {bg::cache::player::%{_p}%::arena}
+	set {_arena} to {-bg::player::%{_p}%::arena}
 	create scoreboard for {_p}
 	add "&a", "&b", "&c", "&d", "&e", "&1", "&2", "&3", "&4", "&5", "&6", "&7", "&8", "&9" and "&f" to {_d::*}
 	if {_t} is "BG-GAME":
 		set scoreboard title of {_p} to yaml value "Settings.Scoreboard.Game.Name" from "leaf.bg.config"
-		while {bg::cache::player::%{_p}%::arena} = {_arena}:	
-			if {bg::arena::%{bg::cache::player::%{_p}%::arena}%::cache::status} is set:	
-				set {_target} to {bg::arena::%{_arena}%::cache::game-border}
-				if {bg::arena::%{_arena}%::cache::next-border} is "&cBORDER CLOSING":
-					set {_distance-check} to {bg::arena::%{_arena}%::cache::border::current-size}/2
+		while {-bg::player::%{_p}%::arena} = {_arena}:	
+			if {-bg::arena::%{-bg::player::%{_p}%::arena}%::status} is set:	
+				set {_target} to {-bg::arena::%{_arena}%::game-border}
+				if {-bg::arena::%{_arena}%::next-border} is "&cBORDER CLOSING":
+					set {_distance-check} to {-bg::arena::%{_arena}%::border::current-size}/2
 				else:
-					set {_distance-check} to {bg::arena::%{_arena}%::cache::border::current-size}
+					set {_distance-check} to {-bg::arena::%{_arena}%::border::current-size}
 				if distance between {_p} and {_target} < {_distance-check}:
 					set {_status} to "&aSAFE"
 					set {_color} to "&a"
 				else:
 					set {_status} to "&cNOT STAFE"
 					set {_color} to "&7"
-				set {_dir} to bg_get_direction({_p}, {bg::arena::%{_arena}%::cache::game-border})
+				set {_dir} to bg_get_direction({_p}, {-bg::arena::%{_arena}%::game-border})
 				loop "⬆", "⬅", "⬇" and "➡":
 					if loop-value-1 is {_dir}:
 						set {_pointer.%loop-value-1%} to "&a%loop-value-1%"
@@ -1104,9 +1095,9 @@ function bg_createBoard(p: player, t: text, size: integer = 15):
 				loop yaml list "Settings.Scoreboard.Game.Lines" from "leaf.bg.config":
 					set {_value} to loop-value-1
 					replace all "{now}" with "%now%" in {_value}
-					replace all "{next-border}" with "%{bg::arena::%{_arena}%::cache::next-border}%" in {_value}
-					replace all "{players-left}" with "%size of {bg::arena::%{_arena}%::cache::ninjas::*}%" in {_value}
-					replace all "{kills}" with "%{bg::cache::player::%{_p}%::kills}%" in {_value}
+					replace all "{next-border}" with "%{-bg::arena::%{_arena}%::next-border}%" in {_value}
+					replace all "{players-left}" with "%size of {-bg::arena::%{_arena}%::ninjas::*}%" in {_value}
+					replace all "{kills}" with "%{-bg::player::%{_p}%::kills}%" in {_value}
 					replace all "{up}" with "%{_pointer.⬆}%" in {_value}
 					replace all "{left}" with "%{_pointer.⬅}% " in {_value}
 					replace all "{right}" with "%{_pointer.➡}%" in {_value}
@@ -1114,7 +1105,7 @@ function bg_createBoard(p: player, t: text, size: integer = 15):
 					replace all "{status}" with "%{_status}%" in {_value}
 					replace all "{health}" with "%{_p}'s health%" in {_value}
 					replace all "{player}" with {_p}'s displayname in {_value}
-					replace all "{size}" with "%{bg::arena::%{_arena}%::cache::border::current-size}%" in {_value}
+					replace all "{size}" with "%{-bg::arena::%{_arena}%::border::current-size}%" in {_value}
 					bg_setSlot({_p}, {_slot}, colored {_value})
 					add 1 to {_slot}
 			else:
@@ -1122,16 +1113,16 @@ function bg_createBoard(p: player, t: text, size: integer = 15):
 			wait a second
 	if {_t} is "BG-WAITING":
 		set scoreboard title of {_p} to yaml value "Settings.Scoreboard.Waiting.Name" from "leaf.bg.config"
-		while {bg::cache::player::%{_p}%::arena} = {_arena}:	
-			if {bg::arena::%{bg::cache::player::%{_p}%::arena}%::cache::status} = "STARTING" or "WAITING":
+		while {-bg::player::%{_p}%::arena} = {_arena}:	
+			if {-bg::arena::%{-bg::player::%{_p}%::arena}%::status} = "STARTING" or "WAITING":
 				set {_slot} to 1
 				loop yaml list "Settings.Scoreboard.Waiting.Lines" from "leaf.bg.config":
 					set {_value} to loop-value-1
 					replace all "{now}" with "%now%" in {_value}
 					replace all "{player}" with {_p}'s displayname in {_value}
-					replace all "{timer}" with "%{bg::arena::%{_arena}%::cache::seconds}%" in {_value}
-					replace all "{players}" with "%size of {bg::arena::%{_arena}%::cache::ninjas::*}%" in {_value}
-					replace all "{arena}" with "%{bg::cache::player::%{_p}%::arena}%" in {_value}
+					replace all "{timer}" with "%{-bg::arena::%{_arena}%::seconds}%" in {_value}
+					replace all "{players}" with "%size of {-bg::arena::%{_arena}%::ninjas::*}%" in {_value}
+					replace all "{arena}" with "%{-bg::player::%{_p}%::arena}%" in {_value}
 					bg_setSlot({_p}, {_slot}, colored {_value})
 					add 1 to {_slot}
 			else:
