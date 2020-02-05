@@ -239,8 +239,7 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 				send "&7/bg setminplayers &8(&7arena_name&8) &8(&7number&8)"
 				send "&7/bg setmaxplayers &8(&7arena_name&8) &8(&7number&8)"	
 				send "&7/bg setcenter &8(&7arena_name&8)"	
-				send "&7/bg add-border &8(&7arena_name&8)"									
-				send "&7/bg remove-border &8(&7arena_name&8)"					
+				send "&7/bg add-border &8(&7arena_name&8)"			
 				send "&7/bg setbordersize &8(&7arena_name&8)"									
 				send "&7/bg set-route-start &8(&7arena_name&8)"							
 				send "&7/bg set-route-end &8(&7arena_name&8)"	
@@ -261,7 +260,7 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 					if {-bg::player::%player%::state} is not set:	
 						open chest inventory with 6 rows named yaml value "Menus.Arena-Browser.Menu" from "leaf.bg.config" to player
 						wait a tick	
-						set {_slot} to 10						
+						set {_slot} to 10
 						loop {-bg::arenas::*}:
 							set {_item} to green clay named replacer "{arena}" with loop-value-1 in yaml value "Menus.Arena-Browser.Name" from "leaf.bg.config"
 							set {_lore::*} to yaml list "Menus.Arena-Browser.Lore" from "leaf.bg.config"
@@ -349,54 +348,42 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 						send "&aThis arena not exists"																				
 				if arg 1 is "setlobby":	
 					if player has permission "bg.admin":
-						set yaml value "Locations.Lobby" from from "leaf.bg.data" to location of 
+						set yaml value "Locations.Lobby" from from "leaf.bg.data" to location of player
 						save "leaf.bg.data"
 						send "&aLobby set."	
 				if arg 1 is "set-route-start":	
 					if arg-2 is set:
-						if {-bg::arena::%arg-2%::route::id} is not set:
-							set {-bg::arena::%arg-2%::route::id} to 1
-						set {-bg::arena::%arg-2%::start::%{-bg::arena::%arg-2%::route::id}%} to location of player
-						send "&aStart with id &e&n%{-bg::arena::%arg-2%::route::id}%&r &aset."
+						if yaml value "%arg-2%.Id" from "leaf.bg.arenas" is not set:
+							set yaml value "%arg-2%.Id" from "leaf.bg.arenas" to 0
+						set {_id} to yaml value "%arg-2%.Id" from "leaf.bg.arenas"
+						set yaml value "%arg-2%.Start.%{_id}%" from "leaf.bg.arenas" to location of player
+						send "&aStart with id &e&n%{_id}%&r &aset."
 				if arg 1 is "set-route-end":	
 					if arg-2 is set:				
-						if {-bg::arena::%arg-2%::route::id} is not set:
-							set {-bg::arena::%arg-2%::route::id} to 1
-						set {-bg::arena::%arg-2%::end::%{-bg::arena::%arg-2%::route::id}%} to location of player
-						send "&aEnd with id &e&n%{-bg::arena::%arg-2%::route::id}%&r &aset."	
-				if arg 1 is "save-route":	
-					if arg-2 is set:				
-						if {-bg::arena::%arg-2%::route::id} is set:
-							if {-bg::arena::%arg-2%::start::%{-bg::arena::%arg-2%::route::id}%} and {-bg::arena::%arg-2%::end::%{-bg::arena::%arg-2%::route::id}%} is set:
-								bg_send_arena_status(player)
-								send "&aRoute with id &e&n%{-bg::arena::%arg-2%::route::id}%&r&a saved."	
-								add 1 to {-bg::arena::%arg-2%::route::id}	
+						if yaml value "%arg-2%.Id" from "leaf.bg.arenas" is not set:
+							set yaml value "%arg-2%.Id" from "leaf.bg.arenas" to 0
+						set {_id} to yaml value "%arg-2%.Id" from "leaf.bg.arenas"
+						set yaml value "%arg-2%.End.%{_id}%" from "leaf.bg.arenas" to location of player
+						send "&aEnd with id &e&n%{_id}%&r &aset."	
+				if arg 1 is "save-route":			
+					set {_id} to yaml value "%arg-2%.Id" from "leaf.bg.arenas"
+					if yaml value "%arg-2%.Start.%{_id}%" from "leaf.bg.arenas" and yaml value "%arg-2%.End.%{_id}%" from "leaf.bg.arenas" is set:
+						set yaml value "%arg-2%.Id" from "leaf.bg.arenas" to yaml value "%arg-2%.Id" from "leaf.bg.arenas" +1
+						bg_send_arena_status(player)
+						send "&aRoute with id &e&n%{_id}%&r&a saved."
 				if arg 1 is "remove-route":	
-					if arg-2 is set:				
-						if {-bg::arena::%arg-2%::route::id} is set:
-							if {-bg::arena::%arg-2%::route::id} = 0:
-								stop
-							delete {-bg::arena::%arg-2%::start::%{-bg::arena::%arg-2%::route::id}%} and {-bg::arena::%arg-2%::end::%{-bg::arena::%arg-2%::route::id}%}
-							bg_send_arena_status(player)
-							send "&aDeleted route with id &e&n%{-bg::arena::%arg-2%::route::id}%&r&a."
-							remove 1 from {-bg::arena::%arg-2%::route::id}	
+					if arg-2 is set:
+						set {_id} to yaml value "%arg-2%.Id" from "leaf.bg.arenas"
+						delete yaml value "%arg-2%.Start.%{_id}%" from "leaf.bg.arenas"
+						delete yaml value "%arg-2%.End.%{_id}%" from "leaf.bg.arenas"
+						bg_send_arena_status(player)
+						send "&aDeleted route with id &e&n%{_id}%&r&a."
+						set yaml value "%arg-2%.Id" from "leaf.bg.arenas" to yaml value "%arg-2%.Id" from "leaf.bg.arenas" -1
 				if arg 1 is "add-border":	
 					if arg-2 is set:				
-						if {-bg::arena::%arg-2%::border-id} is not set:
-							set {-bg::arena::%arg-2%::border-id} to 1
-						set {-bg::arena::%arg-2%::borders::%{-bg::arena::%arg-2%::border-id}%} to location of player
+						add location of player to yaml list "%arg-2%.Borders" from "leaf.bg.arenas"
 						bg_send_arena_status(player)
-						send "&aAdded border with id &e&n%{-bg::arena::%arg-2%::border-id}%&r&a to arena &e&n%arg-2%&r&a."	
-						add 1 to {-bg::arena::%arg-2%::border-id}	
-				if arg 1 is "remove-border":	
-					if arg-2 is set:				
-						if {-bg::arena::%arg-2%::border-id} is set:
-							delete {-bg::arena::%arg-2%::borders::%{-bg::arena::%arg-2%::border-id}%} and {-bg::arena::%arg-2%::borders::%{-bg::arena::%arg-2%::border-id}%}
-							bg_send_arena_status(player)
-							remove 1 from {-bg::arena::%arg-2%::border-id::id}	
-							send "&aRemoved border with id &e&n%{-bg::arena::%arg-2%::border-id}%&r&a from arena &e&n%arg-2%&r&a."	
-						else:
-							send "&cNo borders locations found."					
+						send "&aAdded border location&r&a to arena &e&n%arg-2%&r&a."					
 				if arg 1 is "setcenter":	
 					set yaml value "%arg-2%.Center" from "leaf.bg.arenas" to location of player
 					bg_send_arena_status(player)
