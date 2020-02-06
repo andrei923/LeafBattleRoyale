@@ -26,7 +26,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 0.1.9
+	plugin-version: 0.2.0
 
 local effect [leaf] send title %string% with subtitle %string% to %players% with %number% fadein and %number% fadeout for %number%:		
 	trigger:
