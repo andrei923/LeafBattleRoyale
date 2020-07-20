@@ -3,41 +3,23 @@ import:
 	java.util.Arrays 
 	java.util.ArrayList	 	
 	org.bukkit.Location
+	org.bukkit.Sound
 	org.bukkit.Bukkit
 	org.bukkit.util.EulerAngle 
 	org.bukkit.util.Vector
+	com.leaf.nbt.nbtapi.NBTItem
+	com.leaf.nbt.nbtapi.NBTEntity	
+	com.leaf.nbt.nbtapi.NBTContainer	
 	fr.mrmicky.fastparticle.FastParticle
 	fr.mrmicky.fastparticle.ParticleType	
 	com.fren_gor.packetUtils.events.PacketRetriveEvent
 	org.bukkit.event.player.PlayerArmorStandManipulateEvent
 	org.bukkit.event.player.PlayerInteractEvent
 	
-	
-option nms:
-    get: 
-        set {_nms} to Bukkit.getServer().getClass().getPackage().getName().split("\.")[3]
-        return {_nms}
-
-import:
-	net.minecraft.server.{@nms}.MojangsonParser
-	net.minecraft.server.{@nms}.NBTTagCompound
-	org.bukkit.craftbukkit.{@nms}.inventory.CraftItemStack
-
 options:
 
 	#do not touch this -_-
-	plugin-version: 0.2.0
-
-local effect [leaf] send title %string% with subtitle %string% to %players% with %number% fadein and %number% fadeout for %number%:		
-	trigger:
-		loop exprs-3:
-			{-bg::TitleManager}.sendTitle(loop-value-1, expr-1, expr-4, expr-5 and expr-6)
-			{-bg::TitleManager}.sendSubtitle(loop-value-1 and expr-2)
-
-local effect [leaf] send action[ ]bar %string% to %players%:		
-	trigger:
-		loop exprs-2:
-			{-bg::TitleManager}.sendActionbar(loop-value-1 and expr-1)
+	plugin-version: 0.2.1
 			
 local effect create scoreboard for %player%:	
 	trigger:
@@ -80,14 +62,16 @@ function check_yaml(dir: text, value: text, set: text, type: text = "TEXT"):
 		loop {_set} split at "||":
 			add loop-value to yaml list {_value} from "leaf.bg.%{_dir}%"
 
-local expression nbt of %entity%:
-    add:
-        set {_nbt} to new NBTTagCompound()
-        set {_e} to expression-1.getHandle()
-        {_e}.c({_nbt})
-        set {_nbt2} to MojangsonParser.parse(change value)
-        {_nbt}.a({_nbt2})
-        {_e}.f({_nbt})	
+local effect add %string% to nbt of %entity%:
+	trigger:
+		set {_nbtent} to new NBTEntity(expr-2)
+		{_nbtent}.mergeCompound(new NBTContainer(expr-1))	
+
+function bg_play_sound(p: player, soundLegacy: string, soundNew: string):
+	if minecraft version contains "1.8":
+		{_p}.playSound(location of {_p}, Sound..{_soundLegacy}, 1 and 1)	
+	else:	
+		{_p}.playSound(location of {_p}, Sound..{_soundNew}, 1 and 1)
 
 #From https://forums.skunity.com/resources/mirrorutils.706/ by EWS
 local expression replacer %texts% with %texts% in %text%:
@@ -327,7 +311,7 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 							if player's tool is not air:
 								set name of player's tool to colored arg-3									
 				if arg 1 is "parachute":
-					open virtual hopper inventory with 1 rows named "&8&l» &7Select Side" to player	
+					open chest inventory with 1 row named "&8&l» &7Select Side" to player	
 					wait a tick
 					if {-bg::stats::banner::left::%uuid of player%} is set:
 						make a gui slot 0 of player with {-bg::stats::banner::left::%uuid of player%} named "&8&l» &7Left Side" to run function bg_set_banner(player, "left")
@@ -639,7 +623,6 @@ function bg_remove(p: player, arena: text):
 		loop 10 times:
 			minecraft version contains "1.8" or "1.9" or "1.10" or "1.11" or "1.12"
 			if {-bg::player::%{_p}%::state} is "IN-GAME":
-				launch "BALL" firework at location of {_p} timed 1 coloured "RED" and "BLUE" AND "YELLOW" AND "GREEN"
 				wait a second	
 		bg_resetarena({_arena})
 
@@ -717,7 +700,7 @@ on right click:
 					add 5 to {_timer}	
 					send action bar "&7Bandaging... &e%{_timer}%/100" to player
 					if {_timer} = 1*{_timer}:
-						play sound "DRINK" to player with volume 1 and pitch 1
+						bg_play_sound(player, "DRINK", "ENTITY_GENERIC_DRINK")
 					if {_timer} = 100:
 						delete {-bg::player::%player%::bandaging}
 						remove 1 of {_bandage} from player
