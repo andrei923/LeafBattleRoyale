@@ -89,7 +89,7 @@ on load:
 		loop-value contains "leaf.bg.config" or "leaf.bg.data" or "leaf.bg.arenas" or "leaf.bg.playerdata"
 		unload yaml loop-value-1
 	loop "config", "arenas", "data" and "playerdata":
-		load yaml "plugins/Battlegrounds/%loop-value-1%.yml" as "leaf.bg.%loop-value-1%"		
+		load yaml "plugins/BattleRoyale/%loop-value-1%.yml" as "leaf.bg.%loop-value-1%"		
 	check_yaml("config", "Settings.Chat-Format", "&3{player} &8» &7{message}")			
 	check_yaml("config", "Settings.Chest.Enabled", "true", "boolean")
 	check_yaml("config", "Settings.Chest.Min", "3", "number")		
@@ -121,8 +121,10 @@ on load:
 	check_yaml("config", "Messages.Kill.Action-Bar", "&7You killed &c{victim} &7with &e{tool} &7- {players-left} &7left &c{kills} &cKILLS")	
 	check_yaml("config", "Messages.Death", "&9➜ &a{victim} &7died")	
 	check_yaml("config", "Messages.Starting", "&eThe battle starts in &a{seconds} &eseconds")	
-	check_yaml("config", "Messages.Stats", "&e&l✦&7&l&m--------------------------------------&e&l✦||||&8&l»          &6&lBATTLEGROUNDS STATS        &8&l«||||&6» &7Wins &c{Wins}||&6» &7Kills &c{Kills}||&6» &7PlayedGames &c{PlayedGames}||&6» &7Chests &c{Chests}||&6» &7Deaths &c{deaths}||||&e&l✦&7&l&m--------------------------------------&e&l✦", "list")		
-	check_yaml("config", "Messages.Summary", "||||||&e✦ &7Battle Royale &e✦||||&aWinner &7- &e{player}||&aKills &7- &e{kills}||||||", "list")			
+	check_yaml("config", "Messages.Stats", "&e&l✦&7&l&m--------------------------------------&e&l✦||||&8&l»          &6&lBattleRoyale STATS        &8&l«||||&6» &7Wins &c{Wins}||&6» &7Kills &c{Kills}||&6» &7PlayedGames &c{PlayedGames}||&6» &7Chests &c{Chests}||&6» &7Deaths &c{deaths}||||&e&l✦&7&l&m--------------------------------------&e&l✦", "list")		
+	check_yaml("config", "Messages.Summary", "||||||&e✦ &7Battle Royale &e✦||||&aWinner &7- &e{player}||&aKills &7- &e{kills}||||||", "list")
+	check_yaml("config", "Titles.Win.Title", "&e&l##1 &a&lYOU WON")	
+	check_yaml("config", "Titles.Win.SubTitle", "&eBATTLE ROYALE")				
 	#Fixing old arenas
 	if {bg::arenas::*} is set:
 		broadcast "&cOld version found, converting arenas.."
@@ -246,7 +248,7 @@ command battlegrouns [<text = help>] [<text>] [<text>] [<number>]:
 	trigger:
 		if arg 1 is "help":
 			if player has permission "bg.player":
-				send "&8&l[&7&l----------&8[ &6&lBATTLEGROUNDS &8]&7&l----------&8&l]"
+				send "&8&l[&7&l----------&8[ &6&lBattleRoyale &8]&7&l----------&8&l]"
 				send "&a/bg list"
 				send "&a/bg join &8(&7arena_name&8)"
 				send "&a/bg parachute"				
@@ -589,19 +591,21 @@ function bg_player_death(p: player, killer: text = "null"):
 	else:
 		send replacer "{victim}" with {_p}'s display name in yaml value "Messages.Death" from "leaf.bg.config" to {-bg::arena::%{_arena}%::ninjas::*}
 
+on death of player:
+	if {-bg::arena::%{-bg::player::%victim%::arena}%::status} is "IN-GAME" or "FLYING":
+		wait a tick
+		force victim to respawn
+		if attacker is set:
+			bg_player_death(victim, "%attacker%")
+		else:
+			bg_player_death(victim)	
+
 on damage of player:
 	if {-bg::player::%victim%::state} is "IN-GAME":
 		if {-bg::arena::%{-bg::player::%victim%::arena}%::status} is "STARTING" or "WAITING":
 			cancel event
 			damage cause is void
-			teleport victim to yaml value "%{-bg::player::%victim%::arena}%.Lobby" from "leaf.bg.arenas"
-		if {-bg::arena::%{-bg::player::%victim%::arena}%::status} is "IN-GAME" or "FLYING":
-			if damage >= health of victim:
-				cancel event
-				if attacker is set:
-					bg_player_death(victim, "%attacker%")
-				else:
-					bg_player_death(victim)					
+			teleport victim to yaml value "%{-bg::player::%victim%::arena}%.Lobby" from "leaf.bg.arenas"				
 		if {-bg::arena::%{-bg::player::%victim%::arena}%::status} is "RESTARTING":				
 			cancel event	
 						
@@ -613,7 +617,7 @@ function bg_remove(p: player, arena: text):
 		bg_delete_arena_entities({_arena})
 		loop {-bg::arena::%{_arena}%::ninjas::*}:
 			set {_p} to loop-value-1
-		send title "&e&l##1 &a&lYOU WON" with subtitle "&eBATTLE ROYALE" to {_p} with 10 fadein and 10 fadeout for 80
+		send title yaml value "Titles.Win.Title" from "leaf.bg.config" with subtitle yaml value "Titles.Win.SubTitle" from "leaf.bg.config" to {_p} with 10 fadein and 10 fadeout for 80
 		loop yaml list "Messages.Summary" from "leaf.bg.config":
 			set {_msg} to loop-value-1
 			replace all "{player}" with "%{_p}%" in {_msg}
@@ -846,8 +850,6 @@ function bg_start(arena: text):
 	set {-bg::arena::%{_arena}%::route} to rounded random number between 1 and yaml value "%{_arena}%.Id" from "leaf.bg.arenas" -1
 	set {_start} to yaml value "%{_arena}%.Start.%{-bg::arena::%{_arena}%::route}%" from "leaf.bg.arenas"
 	set {_end} to yaml value "%{_arena}%.End.%{-bg::arena::%{_arena}%::route}%" from "leaf.bg.arenas"
-	broadcast "%{-bg::arena::%{_arena}%::route}%"
-	broadcast "%{_start}%"	
 	{_start}.getChunk().load()
 	bg_delete_arena_entities({_arena})	
 	spawn an ender dragon at {_start}
