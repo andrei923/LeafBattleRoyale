@@ -13,13 +13,12 @@ import:
 	fr.mrmicky.fastparticle.FastParticle
 	fr.mrmicky.fastparticle.ParticleType	
 	org.bukkit.event.player.PlayerInteractEvent	
-	com.fren_gor.packetUtils.events.PacketRetriveEvent
 	org.bukkit.event.player.PlayerArmorStandManipulateEvent
 	
 options:
 
 	#do not touch this -_-
-	plugin-version: 0.2.2
+	plugin-version: 0.2.3
 			
 local effect create scoreboard for %player%:	
 	trigger:
@@ -508,14 +507,13 @@ on dismount:
 			metadata value "BG-PLANE" of loop-entity is "%player%"
 			make player ride loop-entity
 
-on PacketRetriveEvent:
-	if {-bg::player::%event.getPlayer()%::state} is set:
-		if "%event.getPacketName()%" is "PacketPlayInSteerVehicle":
-			metadata value "BG-PARACHUTE" of event.getPlayer() is set:
-				event.setCancelled(true)
-			metadata value "BG-FLYING" of event.getPlayer() is set:
-				if distance between yaml value "%{-bg::player::%event.getPlayer()%::arena}%.Start.%{-bg::arena::%{-bg::player::%event.getPlayer()%::arena}%::route}%" from "leaf.bg.arenas" and event.getPlayer() < yaml value "Settings.Misc.Allow-Jump-After" from "leaf.bg.config":
-					event.setCancelled(true)		
+on packet PacketPlayInSteerVehicle:
+	if {-bg::player::%player%::state} is set:
+		metadata value "BG-PARACHUTE" of player is set:
+			event.setCancelled(true)
+		metadata value "BG-FLYING" of player is set:
+			if distance between yaml value "%{-bg::player::%player%::arena}%.Start.%{-bg::arena::%{-bg::player::%player%::arena}%::route}%" from "leaf.bg.arenas" and player < yaml value "Settings.Misc.Allow-Jump-After" from "leaf.bg.config":
+				event.setCancelled(true)		
 
 on right click on chest or trapped chest:	
 	if {-bg::arena::%{-bg::player::%player%::arena}%::status} is "IN-GAME" or "FLYING":	
